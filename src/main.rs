@@ -11,7 +11,7 @@ fn main() {
     }
     match args[1].as_str() {
         "clone" => cmd::clone(args[2].as_str()),
-        "branch" => cmd::branch(args[2].as_str()),
+        "branch" => cmd::branch(&args[2..]),
         _ => fail!("command `{}` not found", args[1]),
     }
 }

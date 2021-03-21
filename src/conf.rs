@@ -1,24 +1,36 @@
 use std::io::Write;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default)]
+    branch_prefix: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     repos: Vec<RepoConfig>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     branches: Vec<BranchConfig>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct BranchConfig {
-    name: String,
-    repo: String,
+    pub name: String,
+    pub branch_name: String,
+    pub repo: String,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct RepoConfig {
-    path: String,
-    main_branch: String,
+    pub path: String,
+    pub main_branch: String,
+}
+
+impl RepoConfig {
+    fn short_name(&self) -> &str {
+        self.path.rsplit("/").next().unwrap()
+    }
 }
 
 impl Config {
@@ -26,7 +38,29 @@ impl Config {
         Config {
             branches: Vec::new(),
             repos: Vec::new(),
+            branch_prefix: String::new(),
         }
+    }
+
+    pub fn get_repo_config(&self, repo_name: &str) -> Option<&RepoConfig> {
+        self.repos.iter().find(|x| x.short_name() == repo_name)
+    }
+
+    pub fn add_branch(&mut self, name: String, repo: String) -> String {
+        let branch_name = format!("{}{}", self.branch_prefix, name);
+
+        self.branches.retain(|b| b.name != name);
+        self.branches.push(BranchConfig {
+            name,
+            repo,
+            branch_name: branch_name.clone(),
+        });
+        branch_name
+    }
+
+    pub fn add_repo(&mut self, path: String, main_branch: String) {
+        self.repos.retain(|s| s.path != path);
+        self.repos.push(RepoConfig { path, main_branch })
     }
 }
 
