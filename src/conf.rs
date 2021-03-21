@@ -4,19 +4,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
-struct Config {
+pub struct Config {
     repos: Vec<RepoConfig>,
     branches: Vec<BranchConfig>,
 }
 
 #[derive(Serialize, Deserialize)]
-struct BranchConfig {
+pub struct BranchConfig {
     name: String,
     repo: String,
 }
 
 #[derive(Serialize, Deserialize)]
-struct RepoConfig {
+pub struct RepoConfig {
     path: String,
     main_branch: String,
 }
