@@ -3,6 +3,7 @@ mod fail;
 
 mod cmd;
 mod conf;
+mod fs;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -12,6 +13,7 @@ fn main() {
     match args[1].as_str() {
         "clone" => cmd::clone(args[2].as_str()),
         "branch" => cmd::branch(&args[2..]),
+        "start" => fs::serve(),
         _ => fail!("command `{}` not found", args[1]),
     }
 }

@@ -58,7 +58,9 @@ version = "0.1.0"
 dependencies = [
  "fuse",
  "git2",
+ "libc",
  "serde",
+ "time",
  "toml",
 ]
 
