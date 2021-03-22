@@ -2,7 +2,7 @@ use std::io::Write;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     branch_prefix: String,
@@ -11,17 +11,17 @@ pub struct Config {
     repos: Vec<RepoConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
-    branches: Vec<BranchConfig>,
+    pub branches: Vec<BranchConfig>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BranchConfig {
     pub name: String,
     pub branch_name: String,
     pub repo: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RepoConfig {
     pub path: String,
     pub main_branch: String,

@@ -1,9 +1,11 @@
 #[macro_use]
 mod fail;
 
+mod branch_fs;
 mod cmd;
 mod conf;
 mod fs;
+mod root_fs;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();

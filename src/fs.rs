@@ -3,9 +3,14 @@ use libc::ENOENT;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 
-fn attrs(filetype: FileType) -> FileAttr {
+use crate::branch_fs::BranchFilesystem;
+use crate::root_fs::RootFilesystem;
+
+pub const BRANCH_INO_LIMIT: u64 = 4096;
+
+pub fn attrs(ino: u64, filetype: FileType) -> FileAttr {
     FileAttr {
-        ino: 2,
+        ino,
         size: 13,
         blocks: 1,
         atime: time::Timespec::new(0, 0),
@@ -34,102 +39,79 @@ pub fn serve() {
 
     let filesystem = G2Filesystem::new();
 
-    fuse::mount(filesystem, &mount_dir, &options);
+    fuse::mount(filesystem, &mount_dir, &options).unwrap();
 }
 
 enum Node {
     Root,
-    Branch(usize, String),
+    BranchRoot(usize, String),
 }
 
 struct G2Filesystem {
     nodes: HashMap<u64, Node>,
+    root_fs: RootFilesystem,
+    branch_fs: HashMap<String, BranchFilesystem>,
 }
-
-struct RootFilesystem;
-struct BranchFilesystem;
 
 impl G2Filesystem {
     pub fn new() -> Self {
         G2Filesystem {
             nodes: HashMap::new(),
+            root_fs: RootFilesystem::new(),
+            branch_fs: HashMap::new(),
         }
     }
 
-    pub fn subfilesystem(&self, node: &Node) -> Box<dyn fuse::Filesystem> {
-        match node {
-            Node::Root => Box::new(RootFilesystem {}),
-            Node::Branch(bno, path) => Box::new(BranchFilesystem {}),
-        }
-    }
+    pub fn subfilesystem(&mut self, ino: u64) -> Option<&mut dyn fuse::Filesystem> {
+        let node = if ino == 1 {
+            &Node::Root
+        } else if ino <= BRANCH_INO_LIMIT {
+            let branch = match self.root_fs.ino_branch_map.get(&ino) {
+                Some(b) => b,
+                None => return None,
+            };
 
-    pub fn lookup_ino(&self, ino: u64) -> Option<&Node> {
-        if ino == 1 {
-            return Some(&Node::Root);
-        }
-        self.nodes.get(&ino)
-    }
-}
+            if !self.branch_fs.contains_key(branch) {
+                self.branch_fs.insert(
+                    branch.to_string(),
+                    BranchFilesystem::new(branch.to_string()),
+                );
+            }
 
-impl fuse::Filesystem for BranchFilesystem {
-    fn readdir(
-        &mut self,
-        req: &fuse::Request,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
-        mut reply: fuse::ReplyDirectory,
-    ) {
-    }
-}
-
-impl fuse::Filesystem for RootFilesystem {
-    fn lookup(&mut self, _req: &fuse::Request, parent: u64, name: &OsStr, reply: fuse::ReplyEntry) {
-        if name.to_str() == Some("hello.txt") {
-            reply.entry(&time::Timespec::new(1, 0), &attrs(FileType::RegularFile), 0);
+            if let Some(fs) = self.branch_fs.get_mut(branch) {
+                return Some(fs);
+            }
+            return None;
         } else {
-            reply.error(ENOENT);
-        }
-    }
+            match self.nodes.get(&ino) {
+                Some(x) => x,
+                None => return None,
+            }
+        };
 
-    fn readdir(
-        &mut self,
-        req: &fuse::Request,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
-        mut reply: fuse::ReplyDirectory,
-    ) {
-        let entries = vec![
-            (1, FileType::Directory, "."),
-            (1, FileType::Directory, ".."),
-            (2, FileType::RegularFile, "hello.txt"),
-        ];
-        for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-            reply.add(entry.0, (i + 1) as i64, entry.1, entry.2);
+        match node {
+            _ => Some(&mut self.root_fs),
+            /*Node::Root => &mut self.root_fs,
+            Node::Branch(bno, path) => &mut BranchFilesystem {},*/
         }
-        reply.ok();
     }
 }
 
 impl fuse::Filesystem for G2Filesystem {
     fn lookup(&mut self, req: &fuse::Request, parent: u64, name: &OsStr, reply: fuse::ReplyEntry) {
-        println!("lookup: {}", parent);
-        let node = match self.lookup_ino(parent) {
-            Some(n) => n,
+        let fs = match self.subfilesystem(parent) {
+            Some(f) => f,
             None => return reply.error(ENOENT),
         };
-        let mut fs = self.subfilesystem(node);
         fs.lookup(req, parent, name, reply);
     }
 
-    fn getattr(&mut self, _req: &fuse::Request, ino: u64, reply: fuse::ReplyAttr) {
-        println!("getattr: {}", ino);
-        match ino {
-            1 => reply.attr(&time::Timespec::new(1, 0), &attrs(FileType::Directory)),
-            2 => reply.attr(&time::Timespec::new(1, 0), &attrs(FileType::RegularFile)),
-            _ => reply.error(ENOENT),
-        }
+    fn getattr(&mut self, req: &fuse::Request, ino: u64, reply: fuse::ReplyAttr) {
+        let mut fs = match self.subfilesystem(ino) {
+            Some(f) => f,
+            None => return reply.error(ENOENT),
+        };
+        fs.getattr(req, ino, reply);
     }
 
     fn read(
@@ -157,12 +139,10 @@ impl fuse::Filesystem for G2Filesystem {
         offset: i64,
         mut reply: fuse::ReplyDirectory,
     ) {
-        println!("readdir: {}", ino);
-        let node = match self.lookup_ino(ino) {
-            Some(n) => n,
+        let fs = match self.subfilesystem(ino) {
+            Some(f) => f,
             None => return reply.error(ENOENT),
         };
-        let mut fs = self.subfilesystem(node);
         fs.readdir(req, ino, _fh, offset, reply);
     }
 }
