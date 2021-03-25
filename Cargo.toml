@@ -13,3 +13,4 @@ toml = "0.5.8"
 serde = {version = "1", features= ["derive"] }
 libc = "0.2.90"
 time = "0.1"
+rand = "0.8"

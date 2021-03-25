@@ -1,12 +1,20 @@
 use fuse::{FileAttr, FileType};
 use libc::ENOENT;
+use rand::Rng;
 use std::collections::HashMap;
 use std::ffi::OsStr;
+
+use std::sync::atomic::AtomicU64;
 
 use crate::branch_fs::BranchFilesystem;
 use crate::root_fs::RootFilesystem;
 
 pub const BRANCH_INO_LIMIT: u64 = 4096;
+const NEXT_INO: AtomicU64 = AtomicU64::new(BRANCH_INO_LIMIT);
+
+pub fn generate_ino() -> u64 {
+    NEXT_INO.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
 
 pub fn attrs(ino: u64, filetype: FileType) -> FileAttr {
     FileAttr {
@@ -74,7 +82,7 @@ impl G2Filesystem {
             if !self.branch_fs.contains_key(branch) {
                 self.branch_fs.insert(
                     branch.to_string(),
-                    BranchFilesystem::new(branch.to_string()),
+                    BranchFilesystem::new(ino, branch.to_string()),
                 );
             }
 
