@@ -1,6 +1,7 @@
 use fuse::{FileAttr, FileType};
 use libc::ENOENT;
 use rand::Rng;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 
@@ -50,27 +51,31 @@ pub fn serve() {
     fuse::mount(filesystem, &mount_dir, &options).unwrap();
 }
 
-enum Node {
+#[derive(Clone)]
+pub enum Node {
     Root,
-    BranchRoot(usize, String),
+    BranchContent(usize),
 }
 
 struct G2Filesystem {
-    nodes: HashMap<u64, Node>,
+    nodes: RefCell<HashMap<u64, Node>>,
     root_fs: RootFilesystem,
-    branch_fs: HashMap<String, BranchFilesystem>,
+    branches: Vec<BranchFilesystem>,
+    name_to_branch: HashMap<String, usize>,
 }
 
 impl G2Filesystem {
     pub fn new() -> Self {
         G2Filesystem {
-            nodes: HashMap::new(),
+            nodes: RefCell::new(HashMap::new()),
             root_fs: RootFilesystem::new(),
-            branch_fs: HashMap::new(),
+            branches: Vec::new(),
+            name_to_branch: HashMap::new(),
         }
     }
 
     pub fn subfilesystem(&mut self, ino: u64) -> Option<&mut dyn fuse::Filesystem> {
+        let nodes = self.nodes.borrow();
         let node = if ino == 1 {
             &Node::Root
         } else if ino <= BRANCH_INO_LIMIT {
@@ -79,28 +84,31 @@ impl G2Filesystem {
                 None => return None,
             };
 
-            if !self.branch_fs.contains_key(branch) {
-                self.branch_fs.insert(
+            if !self.name_to_branch.contains_key(branch) {
+                let bid = self.branches.len();
+                self.branches.push(BranchFilesystem::new(
+                    ino,
                     branch.to_string(),
-                    BranchFilesystem::new(ino, branch.to_string()),
-                );
+                    self.nodes.clone(),
+                    bid,
+                ));
+                self.name_to_branch.insert(branch.to_string(), bid);
             }
 
-            if let Some(fs) = self.branch_fs.get_mut(branch) {
-                return Some(fs);
+            if let Some(bid) = self.name_to_branch.get(branch) {
+                return Some(&mut self.branches[*bid]);
             }
             return None;
         } else {
-            match self.nodes.get(&ino) {
+            match nodes.get(&ino) {
                 Some(x) => x,
                 None => return None,
             }
         };
 
         match node {
-            _ => Some(&mut self.root_fs),
-            /*Node::Root => &mut self.root_fs,
-            Node::Branch(bno, path) => &mut BranchFilesystem {},*/
+            Node::Root => Some(&mut self.root_fs),
+            Node::BranchContent(bid) => Some(&mut self.branches[*bid]),
         }
     }
 }
@@ -124,19 +132,18 @@ impl fuse::Filesystem for G2Filesystem {
 
     fn read(
         &mut self,
-        _req: &fuse::Request,
+        req: &fuse::Request,
         ino: u64,
-        _fh: u64,
+        fh: u64,
         offset: i64,
-        _size: u32,
+        size: u32,
         reply: fuse::ReplyData,
     ) {
-        println!("read: {}", ino);
-        if ino == 2 {
-            reply.data("asdf\n".as_bytes());
-        } else {
-            reply.error(ENOENT);
-        }
+        let fs = match self.subfilesystem(ino) {
+            Some(f) => f,
+            None => return reply.error(ENOENT),
+        };
+        fs.read(req, ino, fh, offset, size, reply);
     }
 
     fn readdir(
