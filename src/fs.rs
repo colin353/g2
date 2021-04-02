@@ -1,17 +1,17 @@
 use fuse::{FileAttr, FileType};
 use libc::ENOENT;
 use rand::Rng;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 
 use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, RwLock};
 
 use crate::branch_fs::BranchFilesystem;
 use crate::root_fs::RootFilesystem;
 
 pub const BRANCH_INO_LIMIT: u64 = 4096;
-const NEXT_INO: AtomicU64 = AtomicU64::new(BRANCH_INO_LIMIT);
+const NEXT_INO: AtomicU64 = AtomicU64::new(BRANCH_INO_LIMIT + 1);
 
 pub fn generate_ino() -> u64 {
     NEXT_INO.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
@@ -51,14 +51,14 @@ pub fn serve() {
     fuse::mount(filesystem, &mount_dir, &options).unwrap();
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Node {
     Root,
     BranchContent(usize),
 }
 
 struct G2Filesystem {
-    nodes: RefCell<HashMap<u64, Node>>,
+    nodes: Arc<RwLock<HashMap<u64, Node>>>,
     root_fs: RootFilesystem,
     branches: Vec<BranchFilesystem>,
     name_to_branch: HashMap<String, usize>,
@@ -67,7 +67,7 @@ struct G2Filesystem {
 impl G2Filesystem {
     pub fn new() -> Self {
         G2Filesystem {
-            nodes: RefCell::new(HashMap::new()),
+            nodes: Arc::new(RwLock::new(HashMap::new())),
             root_fs: RootFilesystem::new(),
             branches: Vec::new(),
             name_to_branch: HashMap::new(),
@@ -75,10 +75,11 @@ impl G2Filesystem {
     }
 
     pub fn subfilesystem(&mut self, ino: u64) -> Option<&mut dyn fuse::Filesystem> {
-        let nodes = self.nodes.borrow();
+        let nodes = self.nodes.read().unwrap();
         let node = if ino == 1 {
             &Node::Root
         } else if ino <= BRANCH_INO_LIMIT {
+            println!("under branch limit {}", ino);
             let branch = match self.root_fs.ino_branch_map.get(&ino) {
                 Some(b) => b,
                 None => return None,
@@ -100,11 +101,13 @@ impl G2Filesystem {
             }
             return None;
         } else {
+            println!("over branch limit: {}", ino);
             match nodes.get(&ino) {
                 Some(x) => x,
                 None => return None,
             }
         };
+        println!("node: {:?}", node);
 
         match node {
             Node::Root => Some(&mut self.root_fs),
@@ -139,6 +142,7 @@ impl fuse::Filesystem for G2Filesystem {
         size: u32,
         reply: fuse::ReplyData,
     ) {
+        println!("read root, ino {}", ino);
         let fs = match self.subfilesystem(ino) {
             Some(f) => f,
             None => return reply.error(ENOENT),

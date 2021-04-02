@@ -3,13 +3,13 @@ use libc::ENOENT;
 use std::ffi::OsStr;
 use std::io::{Read, Seek, SeekFrom};
 
-use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use crate::fs::{attrs, Node};
 
 pub struct BranchFilesystem {
-    nodes: RefCell<HashMap<u64, Node>>,
+    nodes: Arc<RwLock<HashMap<u64, Node>>>,
     branch_id: usize,
     root_ino: u64,
     temp_dir: String,
@@ -29,7 +29,7 @@ impl BranchFilesystem {
     pub fn new(
         root_ino: u64,
         name: String,
-        nodes: RefCell<HashMap<u64, Node>>,
+        nodes: Arc<RwLock<HashMap<u64, Node>>>,
         branch_id: usize,
     ) -> Self {
         let temp_dir = format!("{}/branches/{}", crate::conf::root_dir(), name);
@@ -55,7 +55,10 @@ impl BranchFilesystem {
 
         let ino = crate::fs::generate_ino();
 
-        RefCell::get_mut(&mut self.nodes).insert(ino, Node::BranchContent(self.branch_id));
+        self.nodes
+            .write()
+            .unwrap()
+            .insert(ino, Node::BranchContent(self.branch_id));
 
         self.path_to_ino.insert(path.to_owned(), ino);
         self.ino_to_path.insert(ino, path.to_owned());
@@ -108,6 +111,42 @@ impl fuse::Filesystem for BranchFilesystem {
         reply.ok()
     }
 
+    fn create(
+        &mut self,
+        _req: &fuse::Request,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        flags: u32,
+        reply: fuse::ReplyCreate,
+    ) {
+        let parent_path = match self.ino_to_path.get(&parent) {
+            Some(p) => p,
+            None => return reply.error(ENOENT),
+        };
+
+        let path = format!(
+            "{}{}/{}",
+            self.temp_dir,
+            parent_path,
+            name.to_str().unwrap()
+        );
+
+        if std::fs::File::create(&path).is_err() {
+            return reply.error(ENOENT);
+        }
+
+        let ino = self.reserve_ino(&path);
+
+        reply.created(
+            &time::Timespec::new(120, 0),
+            &attrs(ino, FileType::RegularFile),
+            0,
+            1,
+            flags,
+        );
+    }
+
     fn read(
         &mut self,
         _req: &fuse::Request,
@@ -122,7 +161,7 @@ impl fuse::Filesystem for BranchFilesystem {
             None => return reply.error(ENOENT),
         };
 
-        if let Ok(mut f) = std::fs::File::open(format!("{}/{}", self.temp_dir, path)) {
+        if let Ok(mut f) = std::fs::File::open(format!("{}{}", self.temp_dir, path)) {
             let seek_position = if offset >= 0 {
                 SeekFrom::Start(offset as u64)
             } else {
@@ -132,7 +171,7 @@ impl fuse::Filesystem for BranchFilesystem {
                 return reply.error(ENOENT);
             }
 
-            let mut buf = Vec::with_capacity(size as usize);
+            let mut buf = vec![0; size as usize];
             if f.read(&mut buf).is_err() {
                 return reply.error(ENOENT);
             }
@@ -148,6 +187,7 @@ impl fuse::Filesystem for BranchFilesystem {
             None => return reply.error(ENOENT),
         };
         let ino = self.reserve_ino(&path);
+        println!("reserved ino: {}", ino);
         if let Ok(temp_meta) = std::fs::metadata(format!("{}/{}", self.temp_dir, path)) {
             let file_type = match temp_meta.file_type().is_file() {
                 true => FileType::RegularFile,
