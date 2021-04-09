@@ -95,9 +95,19 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
         fail!("branch `{}` already exists!", branch_name);
     }
 
-    repo.branch(&full_branch_name, &commit, false).unwrap();
+    let branch_ref = repo
+        .branch(&full_branch_name, &commit, false)
+        .unwrap()
+        .into_reference();
 
-    std::fs::create_dir_all(format!("{}/branches/{}", root_dir, branch_name)).unwrap();
+    let mut opts = git2::WorktreeAddOptions::new();
+    opts.reference(Some(branch_ref));
+
+    let worktree = repo.worktree(
+        &full_branch_name,
+        format!("{}/branches/{}", branch_name).into(),
+        opts,
+    );
 
     conf::set_config(&config);
 }
