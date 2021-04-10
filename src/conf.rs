@@ -42,8 +42,28 @@ impl Config {
         }
     }
 
+    pub fn get_branch_config(&self, branch: &str) -> Option<&BranchConfig> {
+        self.branches.iter().find(|x| x.name == branch)
+    }
+
     pub fn get_repo_config(&self, repo_name: &str) -> Option<&RepoConfig> {
         self.repos.iter().find(|x| x.short_name() == repo_name)
+    }
+
+    pub fn take_configs(self, branch_name: &str) -> Option<(RepoConfig, BranchConfig)> {
+        let branch_config = match self.branches.into_iter().find(|x| x.name == branch_name) {
+            Some(b) => b,
+            None => return None,
+        };
+        let repo_config = match self
+            .repos
+            .into_iter()
+            .find(|x| x.short_name() == &branch_config.repo)
+        {
+            Some(r) => r,
+            None => return None,
+        };
+        Some((repo_config, branch_config))
     }
 
     pub fn add_branch(&mut self, name: String, repo: String) -> String {
@@ -87,4 +107,26 @@ pub fn get_config() -> Config {
     };
 
     config
+}
+
+pub fn get_current_dir_configs() -> (RepoConfig, BranchConfig) {
+    let config = get_config();
+
+    let branch_dir = format!("{}/branches/", root_dir());
+    let workdir = std::env::current_dir()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+
+    if !workdir.starts_with(&branch_dir) {
+        fail!("must be run inside of a g2 branch!");
+    }
+    let suffix = &workdir[branch_dir.len()..];
+    let branch = match suffix.split("/").filter(|s| !s.is_empty()).next() {
+        Some(b) => b,
+        None => fail!("must be run inside of a g2 branch!"),
+    };
+
+    config.take_configs(branch).unwrap()
 }

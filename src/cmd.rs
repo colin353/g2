@@ -101,19 +101,20 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
         .into_reference();
 
     let mut opts = git2::WorktreeAddOptions::new();
-    opts.reference(Some(branch_ref));
+    opts.reference(Some(&branch_ref));
 
-    let worktree = repo.worktree(
-        &full_branch_name,
-        format!("{}/branches/{}", branch_name).into(),
-        opts,
-    );
+    let path = format!("{}/branches/{}", root_dir, branch_name);
+
+    let worktree = repo.worktree(&full_branch_name, std::path::Path::new(&path), Some(&opts));
 
     conf::set_config(&config);
+
+    println!("created branch {}, now go to `{}`", branch_name, path);
 }
 
 pub fn branch(args: &[String]) {
     match args.len() {
+        0 => fail!("you must provide a branch name!"),
         1 => {
             branch_existing(&args[0]);
         }
@@ -122,4 +123,100 @@ pub fn branch(args: &[String]) {
         }
         _ => fail!("too many arguments to `branch`!"),
     };
+}
+
+pub fn get_stdout(mut c: std::process::Command) -> String {
+    match c.output() {
+        Ok(result) => {
+            if !result.status.success() {
+                let output_stderr = std::str::from_utf8(&result.stderr)
+                    .unwrap()
+                    .trim()
+                    .to_owned();
+                fail!("{}", output_stderr);
+            }
+
+            let output_stdout = std::str::from_utf8(&result.stdout)
+                .unwrap()
+                .trim()
+                .to_owned();
+            output_stdout
+        }
+        Err(e) => fail!("{:?}", e),
+    }
+}
+
+pub fn merge_base(branch1: &str, branch2: &str) -> String {
+    let mut c = std::process::Command::new("git");
+    c.arg("merge-base");
+    c.arg(branch1);
+    c.arg(branch2);
+    get_stdout(c)
+}
+
+pub fn diff() {
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+
+    let mut c = std::process::Command::new("git");
+    c.arg("diff");
+    c.arg(base)
+        .stdout(std::process::Stdio::inherit())
+        .stdin(std::process::Stdio::inherit());
+
+    get_stdout(c);
+}
+
+pub fn files() {
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+
+    let mut c = std::process::Command::new("git");
+    c.arg("--no-pager").arg("diff").arg(base).arg("--name-only");
+
+    let out = get_stdout(c);
+    let mut output: Vec<_> = out
+        .split("\n")
+        .map(|x| x.trim().to_string())
+        .filter(|x| !x.is_empty())
+        .collect();
+
+    let mut c = std::process::Command::new("git");
+    c.arg("ls-files").arg("--others").arg("--exclude-standard");
+
+    let out = get_stdout(c);
+    for result in out
+        .split("\n")
+        .map(|x| x.trim().to_string())
+        .filter(|x| !x.is_empty())
+    {
+        output.push(result);
+    }
+
+    for result in output {
+        println!("{}", result);
+    }
+}
+
+fn snapshot(msg: &str) {
+    let mut c = std::process::Command::new("git");
+    c.arg("add").arg(".");
+    get_stdout(c);
+
+    let mut c = std::process::Command::new("git");
+    c.arg("commit").arg("-n").arg("-m").arg(msg);
+    get_stdout(c);
+}
+
+pub fn sync() {
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+
+    // Fetch origin
+    let mut c = std::process::Command::new("git");
+    c.arg("fetch");
+    get_stdout(c);
+
+    // Snapshot so we can merge incoming changes
+    snapshot(&branch_config.branch_name);
 }
