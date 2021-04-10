@@ -4,6 +4,11 @@ use std::process::{Command, Stdio};
 
 use git2;
 
+fn teleport(path: &str) {
+    std::fs::write("/tmp/g2-destination", path).unwrap();
+    std::process::exit(3);
+}
+
 fn run_passthrough(mut c: Command) {
     c.stdout(Stdio::inherit());
     c.stderr(Stdio::inherit());
@@ -55,17 +60,33 @@ pub fn clone(repo_path: &str) {
     );
 }
 
-pub fn branch_existing(branch_name: &str) {
+pub fn set_tmux_name(name: &str) {
+    // See if we can guess the branch name from tmux
+    let mut c = std::process::Command::new("tmux");
+    c.arg("rename-window").arg(name);
+    get_stdout(c);
+}
+
+pub fn branch_existing(branch_name: &str, with_output: bool) {
     let root_dir = conf::root_dir();
     std::fs::create_dir_all(format!("{}/branches/", root_dir)).unwrap();
 
     let destination = format!("{}/branches/{}", root_dir, branch_name);
     if std::path::Path::new(&destination).exists() {
         // The branch already exists, just go there
-        println!("go to {}", format!("{}/fs/{}/", root_dir, branch_name));
+        if with_output {
+            println!(
+                "go to {}",
+                format!("{}/branches/{}/", root_dir, branch_name)
+            );
+        }
+        set_tmux_name(branch_name);
+        teleport(&destination);
     }
 
-    fail!("branch doesn't exist! create it with `g2 branch <repo_name> <branch_name>`");
+    if with_output {
+        fail!("branch doesn't exist! create it with `g2 branch <repo_name> <branch_name>`");
+    }
 }
 
 pub fn branch_new(repo_name: &str, branch_name: &str) {
@@ -110,13 +131,28 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
     conf::set_config(&config);
 
     println!("created branch {}, now go to `{}`", branch_name, path);
+    set_tmux_name(branch_name);
+    teleport(&path);
+}
+
+pub fn auto() {
+    let mut c = std::process::Command::new("tmux");
+    c.arg("display-message").arg("-p").arg("#W");
+    let branch_name = get_stdout(c);
+    branch_existing(&branch_name, false);
 }
 
 pub fn branch(args: &[String]) {
     match args.len() {
-        0 => fail!("you must provide a branch name!"),
+        0 => {
+            // See if we can guess the branch name from tmux
+            let mut c = std::process::Command::new("tmux");
+            c.arg("display-message").arg("-p").arg("#W");
+            let branch_name = get_stdout(c);
+            branch_existing(&branch_name, true);
+        }
         1 => {
-            branch_existing(&args[0]);
+            branch_existing(&args[0], true);
         }
         2 => {
             branch_new(&args[0], &args[1]);

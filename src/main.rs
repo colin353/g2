@@ -19,6 +19,7 @@ fn main() {
         "files" => cmd::files(),
         "sync" => cmd::sync(),
         "upload" => cmd::upload(),
+        "auto" => cmd::auto(),
         "start" => fs::serve(),
         _ => fail!("command `{}` not found", args[1]),
     }
