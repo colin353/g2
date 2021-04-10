@@ -1,11 +1,8 @@
 #[macro_use]
 mod fail;
 
-mod branch_fs;
 mod cmd;
 mod conf;
-mod fs;
-mod root_fs;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -20,7 +17,6 @@ fn main() {
         "sync" => cmd::sync(),
         "upload" => cmd::upload(),
         "auto" => cmd::auto(),
-        "start" => fs::serve(),
         _ => fail!("command `{}` not found", args[1]),
     }
 }
