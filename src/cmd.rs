@@ -126,7 +126,8 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
 
     let path = format!("{}/branches/{}", root_dir, branch_name);
 
-    let worktree = repo.worktree(&full_branch_name, std::path::Path::new(&path), Some(&opts));
+    repo.worktree(&full_branch_name, std::path::Path::new(&path), Some(&opts))
+        .unwrap();
 
     conf::set_config(&config);
 
@@ -249,7 +250,7 @@ fn snapshot(msg: &str) {
     let mut conflicts = Vec::new();
     for file in get_files() {
         if let Ok(s) = std::fs::read_to_string(&file) {
-            if s.contains("<<<<<<<") || s.contains(">>>>>>>") {
+            if s.contains(&format!("<<<{}<<<<", "")) || s.contains(&format!(">>>{}>>>>", "")) {
                 conflicts.push(file);
             }
         }
@@ -274,7 +275,6 @@ fn snapshot(msg: &str) {
 
 pub fn sync() {
     let (repo_config, branch_config) = conf::get_current_dir_configs();
-    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
 
     // Fetch origin
     let mut c = std::process::Command::new("git");
@@ -293,13 +293,9 @@ pub fn sync() {
 }
 
 pub fn upload() {
-    println!("try to snapshot");
-
-    let (repo_config, branch_config) = conf::get_current_dir_configs();
-    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+    let (_, branch_config) = conf::get_current_dir_configs();
     snapshot(&branch_config.branch_name);
 
-    println!("try to push");
     let mut c = std::process::Command::new("git");
     c.arg("push")
         .arg("--set-upstream")
@@ -308,22 +304,19 @@ pub fn upload() {
     get_stdout(c);
 
     // Check whether a pull request exists
-    println!("check for PR");
     let mut c = std::process::Command::new("gh");
     c.arg("pr").arg("view");
     let has_pr = get_status(c);
 
     if has_pr {
-        println!("we got pr");
         return;
     }
 
     // Create a pull request
     let filename = format!("/tmp/g2.{}.pull-request", branch_config.branch_name);
-    let f = std::fs::write(
+    std::fs::write(
         &filename,
         "
-
 # Write PR description above. Lines starting with # will be ignored.
 ",
     )
@@ -333,7 +326,7 @@ pub fn upload() {
         Ok(x) => x,
         Err(_) => String::from("nano"),
     };
-    println!("edit description");
+
     std::process::Command::new(editor)
         .arg(&filename)
         .stdout(Stdio::inherit())
