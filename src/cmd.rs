@@ -125,6 +125,13 @@ pub fn branch(args: &[String]) {
     };
 }
 
+pub fn get_status(mut c: std::process::Command) -> bool {
+    match c.output() {
+        Ok(result) => return result.status.success(),
+        Err(e) => fail!("{:?}", e),
+    };
+}
+
 pub fn get_stdout(mut c: std::process::Command) -> String {
     match c.output() {
         Ok(result) => {
@@ -167,7 +174,7 @@ pub fn diff() {
     get_stdout(c);
 }
 
-pub fn files() {
+pub fn get_files() -> Vec<String> {
     let (repo_config, branch_config) = conf::get_current_dir_configs();
     let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
 
@@ -192,20 +199,41 @@ pub fn files() {
     {
         output.push(result);
     }
+    output
+}
 
-    for result in output {
+pub fn files() {
+    for result in get_files() {
         println!("{}", result);
     }
 }
 
 fn snapshot(msg: &str) {
+    // Check that there are no SCM change markers in the files to add
+    let mut conflicts = Vec::new();
+    for file in get_files() {
+        if let Ok(s) = std::fs::read_to_string(&file) {
+            if s.contains("<<<<<<<") || s.contains(">>>>>>>") {
+                conflicts.push(file);
+            }
+        }
+    }
+
+    if !conflicts.is_empty() {
+        println!("the following files contain SCM change markers:");
+        for conflict in conflicts {
+            println!("{}", conflict);
+        }
+        fail!("resolve the conflicts first, then run `g2 sync` again");
+    }
+
     let mut c = std::process::Command::new("git");
     c.arg("add").arg(".");
     get_stdout(c);
 
     let mut c = std::process::Command::new("git");
     c.arg("commit").arg("-n").arg("-m").arg(msg);
-    get_stdout(c);
+    get_status(c);
 }
 
 pub fn sync() {
@@ -219,4 +247,96 @@ pub fn sync() {
 
     // Snapshot so we can merge incoming changes
     snapshot(&branch_config.branch_name);
+
+    // Try to merge
+    let mut c = std::process::Command::new("git");
+    c.arg("merge").arg(repo_config.main_branch);
+    get_stdout(c);
+
+    // TODO: detect/explain/guide conflict resolution?
+}
+
+pub fn upload() {
+    println!("try to snapshot");
+
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+    snapshot(&branch_config.branch_name);
+
+    println!("try to push");
+    let mut c = std::process::Command::new("git");
+    c.arg("push")
+        .arg("--set-upstream")
+        .arg("origin")
+        .arg("HEAD");
+    get_stdout(c);
+
+    // Check whether a pull request exists
+    println!("check for PR");
+    let mut c = std::process::Command::new("gh");
+    c.arg("pr").arg("view");
+    let has_pr = get_status(c);
+
+    if has_pr {
+        println!("we got pr");
+        return;
+    }
+
+    // Create a pull request
+    let filename = format!("/tmp/g2.{}.pull-request", branch_config.branch_name);
+    let f = std::fs::write(
+        &filename,
+        "
+
+# Write PR description above. Lines starting with # will be ignored.
+",
+    )
+    .unwrap();
+
+    let editor = match std::env::var("EDITOR") {
+        Ok(x) => x,
+        Err(_) => String::from("nano"),
+    };
+    println!("edit description");
+    std::process::Command::new(editor)
+        .arg(&filename)
+        .stdout(Stdio::inherit())
+        .stdin(Stdio::inherit())
+        .output()
+        .unwrap();
+
+    let description = std::fs::read_to_string(&filename).unwrap();
+    let mut description_iter = description.lines();
+    let mut title = String::new();
+    while let Some(line) = description_iter.next() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("#") {
+            continue;
+        }
+        title = line.to_string();
+        break;
+    }
+
+    if title.is_empty() {
+        fail!("PR description was empty, quitting!");
+    }
+
+    let body = description_iter
+        .filter(|line| !line.trim().starts_with("#"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let body_filename = format!("/tmp/g2.{}.body", branch_config.branch_name);
+    std::fs::write(&body_filename, body).unwrap();
+
+    std::process::Command::new("gh")
+        .arg("pr")
+        .arg("create")
+        .arg("--title")
+        .arg(title)
+        .arg("--body-file")
+        .arg(body_filename)
+        .stdout(Stdio::inherit())
+        .stdin(Stdio::inherit())
+        .output()
+        .unwrap();
 }

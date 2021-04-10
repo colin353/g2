@@ -18,6 +18,7 @@ fn main() {
         "diff" => cmd::diff(),
         "files" => cmd::files(),
         "sync" => cmd::sync(),
+        "upload" => cmd::upload(),
         "start" => fs::serve(),
         _ => fail!("command `{}` not found", args[1]),
     }
