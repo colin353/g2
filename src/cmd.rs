@@ -104,9 +104,16 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
 
     let repo = git2::Repository::open_bare(format!("{}/repos/{}", root_dir, repo_name)).unwrap();
 
-    let branch = repo
-        .find_branch(&repo_config.main_branch, git2::BranchType::Local)
-        .unwrap();
+    // Fetch origin. Can't do this with libgit2 because it requires authentication
+    let mut c = std::process::Command::new("git");
+    c.arg("fetch").arg("-q").arg("origin").arg(format!(
+        "{}:{}",
+        &repo_config.main_branch, &repo_config.main_branch
+    ));
+    c.current_dir(format!("{}/repos/{}", root_dir, repo_name));
+    get_stdout(c);
+
+    let branch = repo.find_branch("main", git2::BranchType::Local).unwrap();
     let reference = branch.into_reference();
     let commit = reference.peel_to_commit().unwrap();
 
@@ -317,7 +324,8 @@ pub fn upload() {
     std::fs::write(
         &filename,
         "
-# Write PR description above. Lines starting with # will be ignored.
+# Write PR description above. 
+# Lines starting with # will be ignored.
 ",
     )
     .unwrap();
