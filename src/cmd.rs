@@ -283,9 +283,12 @@ fn snapshot(msg: &str) {
 pub fn sync() {
     let (repo_config, branch_config) = conf::get_current_dir_configs();
 
-    // Fetch origin
+    // Fetch origin. Can't do this with libgit2 because it requires authentication
     let mut c = std::process::Command::new("git");
-    c.arg("fetch");
+    c.arg("fetch").arg("-q").arg("origin").arg(format!(
+        "{}:{}",
+        &repo_config.main_branch, &repo_config.main_branch
+    ));
     get_stdout(c);
 
     // Snapshot so we can merge incoming changes
