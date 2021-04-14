@@ -9,6 +9,7 @@ Todo list:
  - [ ] PR summary view (`g2 status`?)
  - [ ] More info on installation/usage
  - [ ] Demo GIF
+ - [ ] When pushing a PR, change the last commit message to be the PR title?
 
 Other stuff
  - [ ] Don't require tmux
