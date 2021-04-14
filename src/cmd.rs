@@ -377,3 +377,44 @@ pub fn upload() {
         .output()
         .unwrap();
 }
+
+pub fn clean() {
+    let root_dir = conf::root_dir();
+    let mut config = conf::get_config();
+    config.branches.retain(|branch| {
+        let branch_dir = format!("{}/branches/{}", root_dir, branch.name);
+        if !std::path::Path::new(&branch_dir).exists() {
+            println!("branch {} doesn't exist, cleaning it up", branch.name);
+            return false;
+        }
+
+        // Check whether a pull request exists
+        let mut c = std::process::Command::new("gh");
+        c.arg("pr").arg("view");
+        c.current_dir(&branch_dir);
+
+        let result = match c.output() {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("err: {}", e);
+                return true;
+            }
+        };
+
+        let output_stdout = std::str::from_utf8(&result.stdout)
+            .unwrap()
+            .trim()
+            .to_owned();
+
+        if output_stdout.contains("MERGED\n") {
+            println!("branch {} is already merged!", branch.branch_name);
+
+            std::fs::remove_dir_all(&branch_dir).unwrap();
+            return false;
+        }
+
+        true
+    });
+
+    conf::set_config(&config);
+}

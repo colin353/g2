@@ -17,6 +17,7 @@ fn main() {
         "sync" => cmd::sync(),
         "upload" => cmd::upload(),
         "auto" => cmd::auto(),
+        "clean" => cmd::clean(),
         _ => fail!("command `{}` not found", args[1]),
     }
 }
