@@ -10,3 +10,4 @@ edition = "2018"
 git2 = "0.13"
 toml = "0.5.8"
 serde = {version = "1", features= ["derive"] }
+dialoguer = "0.8.0"

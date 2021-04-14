@@ -18,6 +18,7 @@ fn main() {
         "upload" => cmd::upload(),
         "auto" => cmd::auto(),
         "clean" => cmd::clean(),
+        "new" => cmd::new(&args[2..]),
         _ => fail!("command `{}` not found", args[1]),
     }
 }

@@ -8,7 +8,7 @@ pub struct Config {
     branch_prefix: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
-    repos: Vec<RepoConfig>,
+    pub repos: Vec<RepoConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
     pub branches: Vec<BranchConfig>,
@@ -28,7 +28,7 @@ pub struct RepoConfig {
 }
 
 impl RepoConfig {
-    fn short_name(&self) -> &str {
+    pub fn short_name(&self) -> &str {
         self.path.rsplit("/").next().unwrap()
     }
 }
@@ -40,6 +40,10 @@ impl Config {
             repos: Vec::new(),
             branch_prefix: String::new(),
         }
+    }
+
+    pub fn get_branch_config(&self, name: &str) -> Option<&BranchConfig> {
+        self.branches.iter().find(|x| x.name == name)
     }
 
     pub fn get_repo_config(&self, repo_name: &str) -> Option<&RepoConfig> {
