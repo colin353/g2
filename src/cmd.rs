@@ -160,14 +160,13 @@ pub fn new(args: &[String]) {
     }
 
     println!("choose which repository to use:");
-    let mut config = conf::get_config();
+    let config = conf::get_config();
     let options: Vec<_> = config.repos.iter().map(|x| x.short_name()).collect();
     let chosen: usize = dialoguer::Select::new()
         .default(0)
         .items(&options)
         .interact()
         .unwrap();
-    let repo = &config.repos[chosen];
     branch_new(options[chosen], &args[0]);
 }
 
@@ -177,9 +176,9 @@ pub fn branch(args: &[String]) {
             // See if we can guess the branch name from tmux
             let mut c = std::process::Command::new("tmux");
             c.arg("display-message").arg("-p").arg("#W");
-            let branch_name = match get_stdout(c) {
+            match get_stdout(c) {
                 Ok(b) => {
-                    let mut config = conf::get_config();
+                    let config = conf::get_config();
                     if config.get_branch_config(&b).is_some() {
                         return branch_existing(&b, true);
                     }
@@ -187,8 +186,8 @@ pub fn branch(args: &[String]) {
                 _ => (),
             };
 
-            // Couldn't guess branch name, let's select it
-            let mut config = conf::get_config();
+            // Couldn't guess branch name, let's select it via tui
+            let config = conf::get_config();
             let options: Vec<_> = config.branches.iter().map(|x| &x.name).collect();
             let chosen: usize = dialoguer::Select::new()
                 .default(0)
