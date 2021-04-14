@@ -2,12 +2,13 @@
 
 Todo list:
 
- - [ ] Implement `g2 clean`
- - [ ] Finish implementing `g2 sync`
+ - [x] Implement `g2 clean`
+ - [x] Finish implementing `g2 sync`
  - [ ] Don't require tmux
- - [ ] Terminal UI for branch selection
+ - [x] Terminal UI for branch selection
  - [ ] PR summary view (`g2 status`?)
- - [ ] More info on installation/usage
+ - [ ] Don't bury error messages
+ - [ ] More info on installation/usage (including `g2 auto`, teleport setup)
  - [ ] Demo GIF
  - [ ] When pushing a PR, change the last commit message to be the PR title?
  - [ ] Don't fail when `gh` binary isn't around or isn't logged in
