@@ -64,7 +64,7 @@ pub fn set_tmux_name(name: &str) {
     // See if we can guess the branch name from tmux
     let mut c = std::process::Command::new("tmux");
     c.arg("rename-window").arg(name);
-    get_stdout(c);
+    unwrap_or_fail(get_stdout(c));
 }
 
 pub fn branch_existing(branch_name: &str, with_output: bool) {
@@ -111,7 +111,7 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
         &repo_config.main_branch, &repo_config.main_branch
     ));
     c.current_dir(format!("{}/repos/{}", root_dir, repo_name));
-    get_stdout(c);
+    unwrap_or_fail(get_stdout(c));
 
     let branch = repo.find_branch("main", git2::BranchType::Local).unwrap();
     let reference = branch.into_reference();
@@ -146,8 +146,29 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
 pub fn auto() {
     let mut c = std::process::Command::new("tmux");
     c.arg("display-message").arg("-p").arg("#W");
-    let branch_name = get_stdout(c);
+    let branch_name = unwrap_or_fail(get_stdout(c));
     branch_existing(&branch_name, false);
+}
+
+pub fn new(args: &[String]) {
+    if args.len() == 0 {
+        fail!("you must provide a branch name");
+    } else if args.len() == 2 {
+        return branch_new(&args[0], &args[1]);
+    } else if args.len() != 1 {
+        fail!("too many arguments!");
+    }
+
+    println!("choose which repository to use:");
+    let mut config = conf::get_config();
+    let options: Vec<_> = config.repos.iter().map(|x| x.short_name()).collect();
+    let chosen: usize = dialoguer::Select::new()
+        .default(0)
+        .items(&options)
+        .interact()
+        .unwrap();
+    let repo = &config.repos[chosen];
+    branch_new(options[chosen], &args[0]);
 }
 
 pub fn branch(args: &[String]) {
@@ -156,8 +177,26 @@ pub fn branch(args: &[String]) {
             // See if we can guess the branch name from tmux
             let mut c = std::process::Command::new("tmux");
             c.arg("display-message").arg("-p").arg("#W");
-            let branch_name = get_stdout(c);
-            branch_existing(&branch_name, true);
+            let branch_name = match get_stdout(c) {
+                Ok(b) => {
+                    let mut config = conf::get_config();
+                    if config.get_branch_config(&b).is_some() {
+                        return branch_existing(&b, true);
+                    }
+                }
+                _ => (),
+            };
+
+            // Couldn't guess branch name, let's select it
+            let mut config = conf::get_config();
+            let options: Vec<_> = config.branches.iter().map(|x| &x.name).collect();
+            let chosen: usize = dialoguer::Select::new()
+                .default(0)
+                .items(&options)
+                .interact()
+                .unwrap();
+
+            return branch_existing(&options[chosen], true);
         }
         1 => {
             branch_existing(&args[0], true);
@@ -176,7 +215,7 @@ pub fn get_status(mut c: std::process::Command) -> bool {
     };
 }
 
-pub fn get_stdout(mut c: std::process::Command) -> String {
+pub fn get_stdout(mut c: std::process::Command) -> Result<String, String> {
     match c.output() {
         Ok(result) => {
             if !result.status.success() {
@@ -191,9 +230,16 @@ pub fn get_stdout(mut c: std::process::Command) -> String {
                 .unwrap()
                 .trim()
                 .to_owned();
-            output_stdout
+            Ok(output_stdout)
         }
-        Err(e) => fail!("{:?}", e),
+        Err(e) => Err(format!("{:?}", e)),
+    }
+}
+
+pub fn unwrap_or_fail(input: Result<String, String>) -> String {
+    match input {
+        Ok(s) => s,
+        Err(s) => fail!("{}", s),
     }
 }
 
@@ -202,7 +248,7 @@ pub fn merge_base(branch1: &str, branch2: &str) -> String {
     c.arg("merge-base");
     c.arg(branch1);
     c.arg(branch2);
-    get_stdout(c)
+    unwrap_or_fail(get_stdout(c))
 }
 
 pub fn diff() {
@@ -215,7 +261,7 @@ pub fn diff() {
         .stdout(std::process::Stdio::inherit())
         .stdin(std::process::Stdio::inherit());
 
-    get_stdout(c);
+    unwrap_or_fail(get_stdout(c));
 }
 
 pub fn get_files() -> Vec<String> {
@@ -225,7 +271,7 @@ pub fn get_files() -> Vec<String> {
     let mut c = std::process::Command::new("git");
     c.arg("--no-pager").arg("diff").arg(base).arg("--name-only");
 
-    let out = get_stdout(c);
+    let out = unwrap_or_fail(get_stdout(c));
     let mut output: Vec<_> = out
         .split("\n")
         .map(|x| x.trim().to_string())
@@ -235,7 +281,7 @@ pub fn get_files() -> Vec<String> {
     let mut c = std::process::Command::new("git");
     c.arg("ls-files").arg("--others").arg("--exclude-standard");
 
-    let out = get_stdout(c);
+    let out = unwrap_or_fail(get_stdout(c));
     for result in out
         .split("\n")
         .map(|x| x.trim().to_string())
@@ -273,7 +319,7 @@ fn snapshot(msg: &str) {
 
     let mut c = std::process::Command::new("git");
     c.arg("add").arg(".");
-    get_stdout(c);
+    unwrap_or_fail(get_stdout(c));
 
     let mut c = std::process::Command::new("git");
     c.arg("commit").arg("-n").arg("-m").arg(msg);
@@ -289,7 +335,7 @@ pub fn sync() {
         "{}:{}",
         &repo_config.main_branch, &repo_config.main_branch
     ));
-    get_stdout(c);
+    unwrap_or_fail(get_stdout(c));
 
     // Snapshot so we can merge incoming changes
     snapshot(&branch_config.branch_name);
@@ -297,7 +343,7 @@ pub fn sync() {
     // Try to merge
     let mut c = std::process::Command::new("git");
     c.arg("merge").arg(repo_config.main_branch);
-    get_stdout(c);
+    unwrap_or_fail(get_stdout(c));
 
     // TODO: detect/explain/guide conflict resolution?
 }
@@ -311,7 +357,7 @@ pub fn upload() {
         .arg("--set-upstream")
         .arg("origin")
         .arg("HEAD");
-    get_stdout(c);
+    unwrap_or_fail(get_stdout(c));
 
     // Check whether a pull request exists
     let mut c = std::process::Command::new("gh");
