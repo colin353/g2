@@ -10,6 +10,7 @@ Todo list:
  - [ ] More info on installation/usage
  - [ ] Demo GIF
  - [ ] When pushing a PR, change the last commit message to be the PR title?
+ - [ ] Don't fail when `gh` binary isn't around or isn't logged in
 
 Other stuff
  - [ ] Don't require tmux
