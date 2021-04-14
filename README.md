@@ -12,4 +12,6 @@ Todo list:
 
 Other stuff
  - [ ] Don't require tmux
- - [ ] Use libgit2 more instead of shell?
+ - [ ] Use libgit2 more instead of shell? Or maybe just shell and not libgit2?
+ - [ ] Reduce dependencies?
+ - [ ] Zsh/bash completions

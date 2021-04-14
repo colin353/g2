@@ -42,10 +42,6 @@ impl Config {
         }
     }
 
-    pub fn get_branch_config(&self, branch: &str) -> Option<&BranchConfig> {
-        self.branches.iter().find(|x| x.name == branch)
-    }
-
     pub fn get_repo_config(&self, repo_name: &str) -> Option<&RepoConfig> {
         self.repos.iter().find(|x| x.short_name() == repo_name)
     }
