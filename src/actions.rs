@@ -492,7 +492,7 @@ pub fn status() {
         }
 
         let num_summary = match (numbers[0], numbers[1]) {
-            (0, 0) => String::from("[unchanged]"),
+            (0, 0) => String::from("[new]"),
             (x, 0) => format!("[+{}]", x),
             (0, x) => format!("[-{}]", x),
             (x, y) => format!("[+{}, -{}]", x, y),
