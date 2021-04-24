@@ -29,7 +29,7 @@ pub struct RepoConfig {
 
 impl RepoConfig {
     pub fn short_name(&self) -> &str {
-        self.path.rsplit("/").next().unwrap()
+        self.path.rsplit('/').next().unwrap()
     }
 }
 
@@ -58,7 +58,7 @@ impl Config {
         let repo_config = match self
             .repos
             .into_iter()
-            .find(|x| x.short_name() == &branch_config.repo)
+            .find(|x| x.short_name() == branch_config.repo)
         {
             Some(r) => r,
             None => return None,
@@ -123,7 +123,7 @@ pub fn get_current_dir_configs() -> (RepoConfig, BranchConfig) {
         fail!("must be run inside of a g2 branch!");
     }
     let suffix = &workdir[branch_dir.len()..];
-    let branch = match suffix.split("/").filter(|s| !s.is_empty()).next() {
+    let branch = match suffix.split('/').find(|s| !s.is_empty()) {
         Some(b) => b,
         None => fail!("must be run inside of a g2 branch!"),
     };
