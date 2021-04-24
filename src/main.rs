@@ -1,6 +1,7 @@
 #[macro_use]
 mod fail;
 
+mod actions;
 mod cmd;
 mod conf;
 mod tui;
@@ -11,15 +12,15 @@ fn main() {
         fail!("you need to provide at least one argument!");
     }
     match args[1].as_str() {
-        "clone" => cmd::clone(args[2].as_str()),
-        "branch" => cmd::branch(&args[2..]),
-        "diff" => cmd::diff(),
-        "files" => cmd::files(),
-        "sync" => cmd::sync(),
-        "upload" => cmd::upload(),
-        "auto" => cmd::auto(),
-        "clean" => cmd::clean(),
-        "new" => cmd::new(&args[2..]),
+        "clone" => actions::clone(args[2].as_str()),
+        "branch" => actions::branch(&args[2..]),
+        "diff" => actions::diff(),
+        "files" => actions::files(),
+        "sync" => actions::sync(),
+        "upload" => actions::upload(),
+        "auto" => actions::auto(),
+        "clean" => actions::clean(),
+        "new" => actions::new(&args[2..]),
         _ => fail!("command `{}` not found", args[1]),
     }
 }

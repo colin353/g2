@@ -1,0 +1,470 @@
+use crate::cmd;
+use crate::conf;
+use crate::tui;
+
+use git2;
+
+fn guess_default_branch(repo: git2::Repository) -> &'static str {
+    if let Ok(_) = repo.find_branch("develop", git2::BranchType::Local) {
+        return "develop";
+    }
+
+    if let Ok(_) = repo.find_branch("main", git2::BranchType::Local) {
+        return "main";
+    }
+
+    return "master";
+}
+
+pub fn clone(repo_path: &str) {
+    let root_dir = conf::root_dir();
+    let repo_name: &str = repo_path.rsplit("/").next().unwrap();
+    let destination = format!("{}/repos/{}", root_dir, repo_name);
+    if std::path::Path::new(&destination).exists() {
+        fail!("repository {:?} is already checked out!", destination);
+    }
+
+    std::fs::create_dir_all(format!("{}/repos/", root_dir)).unwrap();
+
+    let (_, result) = cmd::system(
+        "git",
+        &["clone", "--bare", &repo_path],
+        Some(&format!("{}/repos/", root_dir)),
+        true,
+    );
+    if result.is_err() {
+        fail!("unable to clone repository!");
+    }
+
+    let repo = git2::Repository::open_bare(&destination).unwrap();
+    let default_branch = guess_default_branch(repo);
+
+    let mut config = conf::get_config();
+    config.add_repo(repo_path.to_string(), default_branch.to_string());
+    conf::set_config(&config);
+
+    println!("Checked out {} to {}", repo_path, destination);
+    println!(
+        "Guessed default branch is `{}`, edit ~/.g2/g2.toml if that's not correct.",
+        default_branch,
+    );
+}
+
+pub fn get_tmux_name() -> Option<String> {
+    let (out, result) = cmd::system("tmux", &["display-message", "-p", "#W"], None, false);
+    if result.is_err() {
+        return None;
+    }
+    Some(out)
+}
+
+pub fn set_tmux_name(name: &str) {
+    // If tmux is installed, we can set the tmux name. If this command fails, it doesn't matter
+    let (_, result) = cmd::system("tmux", &["rename-window", name], None, false);
+    if result.is_err() {
+        // No need to do anything
+    }
+}
+
+pub fn branch_existing(branch_name: &str, with_output: bool) {
+    let root_dir = conf::root_dir();
+    std::fs::create_dir_all(format!("{}/branches/", root_dir)).unwrap();
+
+    let destination = format!("{}/branches/{}", root_dir, branch_name);
+    if std::path::Path::new(&destination).exists() {
+        // The branch already exists, just go there
+        if with_output {
+            println!(
+                "go to {}",
+                format!("{}/branches/{}/", root_dir, branch_name)
+            );
+        }
+        set_tmux_name(branch_name);
+        cmd::teleport(&destination);
+    }
+
+    if with_output {
+        fail!("branch doesn't exist! create it with `g2 branch <repo_name> <branch_name>`");
+    }
+}
+
+pub fn branch_new(repo_name: &str, branch_name: &str) {
+    let root_dir = conf::root_dir();
+
+    let mut config = conf::get_config();
+
+    let repo_config = match config.get_repo_config(repo_name) {
+        Some(x) => x,
+        None => fail!(
+            "repo `{}` isn't cloned! do `g2 clone <repo_path>` first",
+            repo_name
+        ),
+    };
+
+    let repo = git2::Repository::open_bare(format!("{}/repos/{}", root_dir, repo_name)).unwrap();
+
+    // Fetch origin. Can't do this with libgit2 because it requires authentication
+    let (_, result) = cmd::system(
+        "git",
+        &[
+            "fetch",
+            "-q",
+            "origin",
+            &format!("{}:{}", &repo_config.main_branch, &repo_config.main_branch),
+        ],
+        Some(&format!("{}/repos/{}", root_dir, repo_name)),
+        true,
+    );
+    if result.is_err() {
+        fail!("couldn't fetch origin!");
+    }
+
+    let branch = repo.find_branch("main", git2::BranchType::Local).unwrap();
+    let reference = branch.into_reference();
+    let commit = reference.peel_to_commit().unwrap();
+
+    // Check that the branch doesn't already exist
+    let full_branch_name = config.add_branch(branch_name.to_string(), repo_name.to_string());
+    if let Ok(_) = repo.find_branch(&full_branch_name, git2::BranchType::Local) {
+        fail!("branch `{}` already exists!", branch_name);
+    }
+
+    let branch_ref = repo
+        .branch(&full_branch_name, &commit, false)
+        .unwrap()
+        .into_reference();
+
+    let mut opts = git2::WorktreeAddOptions::new();
+    opts.reference(Some(&branch_ref));
+
+    let path = format!("{}/branches/{}", root_dir, branch_name);
+
+    repo.worktree(&full_branch_name, std::path::Path::new(&path), Some(&opts))
+        .unwrap();
+
+    conf::set_config(&config);
+
+    println!("created branch {}, now go to `{}`", branch_name, path);
+    set_tmux_name(branch_name);
+    cmd::teleport(&path);
+}
+
+pub fn auto() {
+    let name = match get_tmux_name() {
+        Some(name) => name,
+        // tmux might not be running, quit silently
+        None => fail!(),
+    };
+    branch_existing(&name, false);
+}
+
+pub fn new(args: &[String]) {
+    if args.len() == 0 {
+        fail!("you must provide a branch name");
+    } else if args.len() == 2 {
+        return branch_new(&args[0], &args[1]);
+    } else if args.len() != 1 {
+        fail!("too many arguments!");
+    }
+
+    println!("choose which repository to use:");
+    let config = conf::get_config();
+    let options: Vec<_> = config.repos.iter().map(|x| x.short_name()).collect();
+    let chosen = match tui::select(&options) {
+        Ok(x) => x,
+        Err(_) => fail!("you have no repositories! clone one first"),
+    };
+    branch_new(options[chosen], &args[0]);
+}
+
+pub fn branch(args: &[String]) {
+    match args.len() {
+        0 => {
+            // See if we can guess the branch name from tmux
+            if let Some(b) = get_tmux_name() {
+                let config = conf::get_config();
+                if config.get_branch_config(&b).is_some() {
+                    return branch_existing(&b, true);
+                }
+            }
+
+            // Couldn't guess branch name, let's select it via tui
+            let config = conf::get_config();
+            let options: Vec<_> = config.branches.iter().map(|x| &x.name).collect();
+
+            let chosen = match tui::select(&options) {
+                Ok(x) => x,
+                Err(_) => fail!("you don't have any branches!"),
+            };
+            return branch_existing(&options[chosen], true);
+        }
+        1 => {
+            branch_existing(&args[0], true);
+        }
+        2 => {
+            branch_new(&args[0], &args[1]);
+        }
+        _ => fail!("too many arguments to `branch`!"),
+    };
+}
+
+pub fn get_status(mut c: std::process::Command) -> bool {
+    match c.output() {
+        Ok(result) => return result.status.success(),
+        Err(e) => fail!("{:?}", e),
+    };
+}
+
+pub fn get_stdout(mut c: std::process::Command) -> Result<String, String> {
+    match c.output() {
+        Ok(result) => {
+            if !result.status.success() {
+                let output_stderr = std::str::from_utf8(&result.stderr)
+                    .unwrap()
+                    .trim()
+                    .to_owned();
+                fail!("{}", output_stderr);
+            }
+
+            let output_stdout = std::str::from_utf8(&result.stdout)
+                .unwrap()
+                .trim()
+                .to_owned();
+            Ok(output_stdout)
+        }
+        Err(e) => Err(format!("{:?}", e)),
+    }
+}
+
+pub fn unwrap_or_fail(input: Result<String, String>) -> String {
+    match input {
+        Ok(s) => s,
+        Err(s) => fail!("{}", s),
+    }
+}
+
+pub fn merge_base(branch1: &str, branch2: &str) -> String {
+    let mut c = std::process::Command::new("git");
+    c.arg("merge-base");
+    c.arg(branch1);
+    c.arg(branch2);
+    unwrap_or_fail(get_stdout(c))
+}
+
+pub fn diff() {
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+
+    let (_, result) = cmd::system("git", &["diff", &base], None, true);
+    if result.is_err() {
+        fail!("unable to get diff!");
+    }
+}
+
+pub fn get_files() -> Vec<String> {
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+
+    let (out, result) = cmd::system(
+        "git",
+        &["--no-pager", "diff", &base, "--name-only"],
+        None,
+        false,
+    );
+    if result.is_err() {
+        fail!("unable to get diff! error: {}", out);
+    }
+
+    let mut output: Vec<_> = out
+        .split("\n")
+        .map(|x| x.trim().to_string())
+        .filter(|x| !x.is_empty())
+        .collect();
+
+    let (out, result) = cmd::system(
+        "git",
+        &["ls-files", "--others", "--exclude-standard"],
+        None,
+        false,
+    );
+    if result.is_err() {
+        fail!("unable to get diff! error: {}", out);
+    }
+
+    for item in out
+        .split("\n")
+        .map(|x| x.trim().to_string())
+        .filter(|x| !x.is_empty())
+    {
+        output.push(item);
+    }
+    output
+}
+
+pub fn files() {
+    for result in get_files() {
+        println!("{}", result);
+    }
+}
+
+fn snapshot(msg: &str) {
+    // Check that there are no SCM change markers in the files to add
+    let mut conflicts = Vec::new();
+    for file in get_files() {
+        if let Ok(s) = std::fs::read_to_string(&file) {
+            if s.contains(&format!("<<<{}<<<<", "")) || s.contains(&format!(">>>{}>>>>", "")) {
+                conflicts.push(file);
+            }
+        }
+    }
+
+    if !conflicts.is_empty() {
+        println!("the following files contain SCM change markers:");
+        for conflict in conflicts {
+            println!("{}", conflict);
+        }
+        fail!("resolve the conflicts first, then run `g2 sync` again");
+    }
+
+    let mut c = std::process::Command::new("git");
+    c.arg("add").arg(".");
+    unwrap_or_fail(get_stdout(c));
+
+    let mut c = std::process::Command::new("git");
+    c.arg("commit").arg("-n").arg("-m").arg(msg);
+    get_status(c);
+}
+
+pub fn sync() {
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+
+    // Fetch origin. Can't do this with libgit2 because it requires authentication
+    let mut c = std::process::Command::new("git");
+    c.arg("fetch").arg("-q").arg("origin").arg(format!(
+        "{}:{}",
+        &repo_config.main_branch, &repo_config.main_branch
+    ));
+    unwrap_or_fail(get_stdout(c));
+
+    // Snapshot so we can merge incoming changes
+    snapshot(&branch_config.branch_name);
+
+    // Try to merge
+    let mut c = std::process::Command::new("git");
+    c.arg("merge").arg(repo_config.main_branch);
+    unwrap_or_fail(get_stdout(c));
+
+    // TODO: detect/explain/guide conflict resolution?
+}
+
+pub fn upload() {
+    let (_, branch_config) = conf::get_current_dir_configs();
+    snapshot(&branch_config.branch_name);
+
+    let (_, result) = cmd::system(
+        "git",
+        &["push", "--set-upstream", "origin", "HEAD"],
+        None,
+        true,
+    );
+    if result.is_err() {
+        fail!("failed to push to remote!");
+    }
+
+    // Check whether a pull request exists
+    let (_, result) = cmd::system("gh", &["pr", "view"], None, false);
+    if result.is_ok() {
+        return;
+    }
+
+    // Create a pull request
+    let filename = format!("/tmp/g2.{}.pull-request", branch_config.branch_name);
+    std::fs::write(
+        &filename,
+        "
+# Write PR description above. 
+# Lines starting with # will be ignored.
+",
+    )
+    .unwrap();
+
+    let editor = match std::env::var("EDITOR") {
+        Ok(x) => x,
+        Err(_) => String::from("nano"),
+    };
+
+    let (_, result) = cmd::system(&editor, &[&filename], None, true);
+    if result.is_err() {
+        fail!("failed to edit PR description, quitting");
+    }
+
+    let description = std::fs::read_to_string(&filename).unwrap();
+    let mut description_iter = description.lines();
+    let mut title = String::new();
+    while let Some(line) = description_iter.next() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("#") {
+            continue;
+        }
+        title = line.to_string();
+        break;
+    }
+
+    if title.is_empty() {
+        fail!("PR description was empty, quitting!");
+    }
+
+    let body = description_iter
+        .filter(|line| !line.trim().starts_with("#"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let body_filename = format!("/tmp/g2.{}.body", branch_config.branch_name);
+    std::fs::write(&body_filename, body).unwrap();
+
+    let (_, result) = cmd::system(
+        "gh",
+        &[
+            "pr",
+            "create",
+            "--title",
+            &title,
+            "--body-file",
+            &body_filename,
+        ],
+        None,
+        true,
+    );
+    if result.is_err() {
+        eprintln!("failed to create PR!");
+    }
+}
+
+pub fn clean() {
+    let root_dir = conf::root_dir();
+    let mut config = conf::get_config();
+    config.branches.retain(|branch| {
+        let branch_dir = format!("{}/branches/{}", root_dir, branch.name);
+        if !std::path::Path::new(&branch_dir).exists() {
+            println!("branch {} doesn't exist, cleaning it up", branch.name);
+            return false;
+        }
+
+        // Check whether a pull request exists
+        let (output, result) = cmd::system("gh", &["pr", "view"], Some(&branch_dir), false);
+        if result.is_err() {
+            // No PR exists yet, keep this branch
+            return true;
+        }
+
+        if output.contains("MERGED\n") || output.contains("CLOSED\n") {
+            println!("branch {} is already merged!", branch.branch_name);
+
+            std::fs::remove_dir_all(&branch_dir).unwrap();
+            return false;
+        }
+
+        true
+    });
+
+    conf::set_config(&config);
+}
