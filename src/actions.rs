@@ -357,7 +357,7 @@ pub fn upload() {
     }
 
     // Check whether a pull request exists
-    let (_, result) = cmd::system("gh", &["pr", "view"], None, true);
+    let (_, result) = cmd::system("gh", &["pr", "view"], None, false);
     if result.is_ok() {
         return;
     }
