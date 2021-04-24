@@ -21,6 +21,7 @@ fn main() {
         "auto" => actions::auto(),
         "clean" => actions::clean(),
         "new" => actions::new(&args[2..]),
+        "status" => actions::status(),
         _ => fail!("command `{}` not found", args[1]),
     }
 }

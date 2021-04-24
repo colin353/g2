@@ -1,4 +1,7 @@
-pub fn select<S: ToString + std::fmt::Display + ?Sized>(options: &[&S]) -> Result<usize, ()> {
+pub fn select<S: ToString + std::fmt::Display + ?Sized>(
+    prompt: &str,
+    options: &[&S],
+) -> Result<usize, ()> {
     if options.is_empty() {
         return Err(());
     }
@@ -6,6 +9,8 @@ pub fn select<S: ToString + std::fmt::Display + ?Sized>(options: &[&S]) -> Resul
     if options.len() == 1 {
         return Ok(0);
     }
+
+    println!("{}", prompt);
 
     Ok(dialoguer::Select::new()
         .default(0)
