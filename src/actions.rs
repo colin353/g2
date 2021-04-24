@@ -242,11 +242,11 @@ pub fn unwrap_or_fail(input: Result<String, String>) -> String {
 }
 
 pub fn merge_base(branch1: &str, branch2: &str) -> String {
-    let mut c = std::process::Command::new("git");
-    c.arg("merge-base");
-    c.arg(branch1);
-    c.arg(branch2);
-    unwrap_or_fail(get_stdout(c))
+    let (out, result) = cmd::system("git", &["merge-base", branch1, branch2], None, false);
+    if result.is_err() {
+        fail!("failed to read merge base!");
+    }
+    out.trim().to_owned()
 }
 
 pub fn diff() {
@@ -473,18 +473,21 @@ pub fn clean() {
 }
 
 pub fn status() {
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+
     let mut file_stats = Vec::new();
     for file in get_files() {
-        let (out, result) = cmd::system("git", &["diff", "--numstat", &file], None, false);
+        let (out, result) = cmd::system("git", &["diff", "--numstat", &base, &file], None, false);
         if result.is_err() {
-            file_stats.push((String::from("[new]"), file));
-            continue;
+            fail!("couldn't run git diff!");
         }
         let numbers: Vec<usize> = out
             .split_whitespace()
             .filter_map(|x| x.parse().ok())
             .collect();
         if numbers.len() != 2 {
+            file_stats.push((String::from("[new]"), file));
             continue;
         }
 
