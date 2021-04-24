@@ -346,12 +346,15 @@ pub fn upload() {
     let (_, branch_config) = conf::get_current_dir_configs();
     snapshot(&branch_config.branch_name);
 
-    let mut c = std::process::Command::new("git");
-    c.arg("push")
-        .arg("--set-upstream")
-        .arg("origin")
-        .arg("HEAD");
-    unwrap_or_fail(get_stdout(c));
+    let (_, result) = cmd::system(
+        "git",
+        &["push", "--set-upstream", "origin", "HEAD"],
+        None,
+        true,
+    );
+    if result.is_err() {
+        fail!("failed to push to remote!");
+    }
 
     // Check whether a pull request exists
     let (_, result) = cmd::system("gh", &["pr", "view"], None, true);
