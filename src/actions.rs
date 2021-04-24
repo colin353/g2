@@ -166,10 +166,9 @@ pub fn new(args: &[String]) {
         fail!("too many arguments!");
     }
 
-    println!("choose which repository to use:");
     let config = conf::get_config();
     let options: Vec<_> = config.repos.iter().map(|x| x.short_name()).collect();
-    let chosen = match tui::select(&options) {
+    let chosen = match tui::select("choose which repository to use:", &options) {
         Ok(x) => x,
         Err(_) => fail!("you have no repositories! clone one first"),
     };
@@ -191,7 +190,7 @@ pub fn branch(args: &[String]) {
             let config = conf::get_config();
             let options: Vec<_> = config.branches.iter().map(|x| &x.name).collect();
 
-            let chosen = match tui::select(&options) {
+            let chosen = match tui::select("select a branch:", &options) {
                 Ok(x) => x,
                 Err(_) => fail!("you don't have any branches!"),
             };
@@ -297,6 +296,8 @@ pub fn get_files() -> Vec<String> {
     {
         output.push(item);
     }
+
+    output.sort();
     output
 }
 
@@ -469,4 +470,37 @@ pub fn clean() {
     });
 
     conf::set_config(&config);
+}
+
+pub fn status() {
+    let mut file_stats = Vec::new();
+    for file in get_files() {
+        let (out, result) = cmd::system("git", &["diff", "--numstat", &file], None, false);
+        if result.is_err() {
+            file_stats.push((String::from("[new]"), file));
+            continue;
+        }
+        let numbers: Vec<usize> = out
+            .split_whitespace()
+            .filter_map(|x| x.parse().ok())
+            .collect();
+        if numbers.len() != 2 {
+            continue;
+        }
+
+        let num_summary = match (numbers[0], numbers[1]) {
+            (0, 0) => String::from("[unchanged]"),
+            (x, 0) => format!("[+{}]", x),
+            (0, x) => format!("[-{}]", x),
+            (x, y) => format!("[+{}, -{}]", x, y),
+        };
+
+        file_stats.push((num_summary, file));
+    }
+
+    let max_numstats = file_stats.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
+
+    for (num_summary, filename) in file_stats {
+        println!("{:>width$} {}", num_summary, filename, width = max_numstats);
+    }
 }
