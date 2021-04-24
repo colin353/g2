@@ -1,6 +1,3 @@
-use crate::conf;
-use crate::tui;
-
 use std::process::Stdio;
 
 pub fn teleport(path: &str) {

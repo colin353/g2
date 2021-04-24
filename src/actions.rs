@@ -2,16 +2,7 @@ use crate::cmd;
 use crate::conf;
 use crate::tui;
 
-use std::process::{Command, Stdio};
-
 use git2;
-
-fn run_passthrough(mut c: Command) {
-    c.stdout(Stdio::inherit());
-    c.stderr(Stdio::inherit());
-    c.stdin(Stdio::inherit());
-    c.output().unwrap();
-}
 
 fn guess_default_branch(repo: git2::Repository) -> &'static str {
     if let Ok(_) = repo.find_branch("develop", git2::BranchType::Local) {
@@ -35,15 +26,17 @@ pub fn clone(repo_path: &str) {
 
     std::fs::create_dir_all(format!("{}/repos/", root_dir)).unwrap();
 
-    let mut c = std::process::Command::new("git");
-    c.current_dir(format!("{}/repos/", root_dir));
-    c.arg("clone");
-    c.arg("--bare");
-    c.arg(&repo_path);
-    run_passthrough(c);
+    let (_, result) = cmd::system(
+        "git",
+        &["clone", "--bare", &repo_path],
+        Some(&format!("{}/repos/", root_dir)),
+        true,
+    );
+    if result.is_err() {
+        fail!("unable to clone repository!");
+    }
 
     let repo = git2::Repository::open_bare(&destination).unwrap();
-
     let default_branch = guess_default_branch(repo);
 
     let mut config = conf::get_config();
@@ -57,11 +50,20 @@ pub fn clone(repo_path: &str) {
     );
 }
 
+pub fn get_tmux_name() -> Option<String> {
+    let (out, result) = cmd::system("tmux", &["display-message", "-p", "#W"], None, false);
+    if result.is_err() {
+        return None;
+    }
+    Some(out)
+}
+
 pub fn set_tmux_name(name: &str) {
-    // See if we can guess the branch name from tmux
-    let mut c = std::process::Command::new("tmux");
-    c.arg("rename-window").arg(name);
-    unwrap_or_fail(get_stdout(c));
+    // If tmux is installed, we can set the tmux name. If this command fails, it doesn't matter
+    let (_, result) = cmd::system("tmux", &["rename-window", name], None, false);
+    if result.is_err() {
+        // No need to do anything
+    }
 }
 
 pub fn branch_existing(branch_name: &str, with_output: bool) {
@@ -102,13 +104,20 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
     let repo = git2::Repository::open_bare(format!("{}/repos/{}", root_dir, repo_name)).unwrap();
 
     // Fetch origin. Can't do this with libgit2 because it requires authentication
-    let mut c = std::process::Command::new("git");
-    c.arg("fetch").arg("-q").arg("origin").arg(format!(
-        "{}:{}",
-        &repo_config.main_branch, &repo_config.main_branch
-    ));
-    c.current_dir(format!("{}/repos/{}", root_dir, repo_name));
-    unwrap_or_fail(get_stdout(c));
+    let (_, result) = cmd::system(
+        "git",
+        &[
+            "fetch",
+            "-q",
+            "origin",
+            &format!("{}:{}", &repo_config.main_branch, &repo_config.main_branch),
+        ],
+        Some(&format!("{}/repos/{}", root_dir, repo_name)),
+        true,
+    );
+    if result.is_err() {
+        fail!("couldn't fetch origin!");
+    }
 
     let branch = repo.find_branch("main", git2::BranchType::Local).unwrap();
     let reference = branch.into_reference();
@@ -141,10 +150,12 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
 }
 
 pub fn auto() {
-    let mut c = std::process::Command::new("tmux");
-    c.arg("display-message").arg("-p").arg("#W");
-    let branch_name = unwrap_or_fail(get_stdout(c));
-    branch_existing(&branch_name, false);
+    let name = match get_tmux_name() {
+        Some(name) => name,
+        // tmux might not be running, quit silently
+        None => fail!(),
+    };
+    branch_existing(&name, false);
 }
 
 pub fn new(args: &[String]) {
@@ -170,17 +181,12 @@ pub fn branch(args: &[String]) {
     match args.len() {
         0 => {
             // See if we can guess the branch name from tmux
-            let mut c = std::process::Command::new("tmux");
-            c.arg("display-message").arg("-p").arg("#W");
-            match get_stdout(c) {
-                Ok(b) => {
-                    let config = conf::get_config();
-                    if config.get_branch_config(&b).is_some() {
-                        return branch_existing(&b, true);
-                    }
+            if let Some(b) = get_tmux_name() {
+                let config = conf::get_config();
+                if config.get_branch_config(&b).is_some() {
+                    return branch_existing(&b, true);
                 }
-                _ => (),
-            };
+            }
 
             // Couldn't guess branch name, let's select it via tui
             let config = conf::get_config();
@@ -249,39 +255,48 @@ pub fn diff() {
     let (repo_config, branch_config) = conf::get_current_dir_configs();
     let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
 
-    let mut c = std::process::Command::new("git");
-    c.arg("diff");
-    c.arg(base)
-        .stdout(std::process::Stdio::inherit())
-        .stdin(std::process::Stdio::inherit());
-
-    unwrap_or_fail(get_stdout(c));
+    let (_, result) = cmd::system("git", &["diff", &base], None, true);
+    if result.is_err() {
+        fail!("unable to get diff!");
+    }
 }
 
 pub fn get_files() -> Vec<String> {
     let (repo_config, branch_config) = conf::get_current_dir_configs();
     let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
 
-    let mut c = std::process::Command::new("git");
-    c.arg("--no-pager").arg("diff").arg(base).arg("--name-only");
+    let (out, result) = cmd::system(
+        "git",
+        &["--no-pager", "diff", &base, "--name-only"],
+        None,
+        false,
+    );
+    if result.is_err() {
+        fail!("unable to get diff! error: {}", out);
+    }
 
-    let out = unwrap_or_fail(get_stdout(c));
     let mut output: Vec<_> = out
         .split("\n")
         .map(|x| x.trim().to_string())
         .filter(|x| !x.is_empty())
         .collect();
 
-    let mut c = std::process::Command::new("git");
-    c.arg("ls-files").arg("--others").arg("--exclude-standard");
+    let (out, result) = cmd::system(
+        "git",
+        &["ls-files", "--others", "--exclude-standard"],
+        None,
+        false,
+    );
+    if result.is_err() {
+        fail!("unable to get diff! error: {}", out);
+    }
 
-    let out = unwrap_or_fail(get_stdout(c));
-    for result in out
+    for item in out
         .split("\n")
         .map(|x| x.trim().to_string())
         .filter(|x| !x.is_empty())
     {
-        output.push(result);
+        output.push(item);
     }
     output
 }
@@ -378,12 +393,10 @@ pub fn upload() {
         Err(_) => String::from("nano"),
     };
 
-    std::process::Command::new(editor)
-        .arg(&filename)
-        .stdout(Stdio::inherit())
-        .stdin(Stdio::inherit())
-        .output()
-        .unwrap();
+    let (_, result) = cmd::system(&editor, &[&filename], None, true);
+    if result.is_err() {
+        fail!("failed to edit PR description, quitting");
+    }
 
     let description = std::fs::read_to_string(&filename).unwrap();
     let mut description_iter = description.lines();
@@ -437,24 +450,13 @@ pub fn clean() {
         }
 
         // Check whether a pull request exists
-        let mut c = std::process::Command::new("gh");
-        c.arg("pr").arg("view");
-        c.current_dir(&branch_dir);
+        let (output, result) = cmd::system("gh", &["pr", "view"], Some(&branch_dir), false);
+        if result.is_err() {
+            // No PR exists yet, keep this branch
+            return true;
+        }
 
-        let result = match c.output() {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("err: {}", e);
-                return true;
-            }
-        };
-
-        let output_stdout = std::str::from_utf8(&result.stdout)
-            .unwrap()
-            .trim()
-            .to_owned();
-
-        if output_stdout.contains("MERGED\n") {
+        if output.contains("MERGED\n") || output.contains("CLOSED\n") {
             println!("branch {} is already merged!", branch.branch_name);
 
             std::fs::remove_dir_all(&branch_dir).unwrap();
