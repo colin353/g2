@@ -1,24 +1,20 @@
-use crate::cmd;
-use crate::conf;
-use crate::tui;
-
-use git2;
+use crate::{cmd, conf, tui};
 
 fn guess_default_branch(repo: git2::Repository) -> &'static str {
-    if let Ok(_) = repo.find_branch("develop", git2::BranchType::Local) {
+    if repo.find_branch("develop", git2::BranchType::Local).is_ok() {
         return "develop";
     }
 
-    if let Ok(_) = repo.find_branch("main", git2::BranchType::Local) {
+    if repo.find_branch("main", git2::BranchType::Local).is_ok() {
         return "main";
     }
 
-    return "master";
+    "master"
 }
 
 pub fn clone(repo_path: &str) {
     let root_dir = conf::root_dir();
-    let repo_name: &str = repo_path.rsplit("/").next().unwrap();
+    let repo_name: &str = repo_path.rsplit('/').next().unwrap();
     let destination = format!("{}/repos/{}", root_dir, repo_name);
     if std::path::Path::new(&destination).exists() {
         fail!("repository {:?} is already checked out!", destination);
@@ -55,7 +51,7 @@ pub fn get_tmux_name() -> Option<String> {
     if result.is_err() {
         return None;
     }
-    Some(out)
+    Some(out.trim().to_string())
 }
 
 pub fn set_tmux_name(name: &str) {
@@ -125,7 +121,10 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
 
     // Check that the branch doesn't already exist
     let full_branch_name = config.add_branch(branch_name.to_string(), repo_name.to_string());
-    if let Ok(_) = repo.find_branch(&full_branch_name, git2::BranchType::Local) {
+    if repo
+        .find_branch(&full_branch_name, git2::BranchType::Local)
+        .is_ok()
+    {
         fail!("branch `{}` already exists!", branch_name);
     }
 
@@ -159,7 +158,7 @@ pub fn auto() {
 }
 
 pub fn new(args: &[String]) {
-    if args.len() == 0 {
+    if args.is_empty() {
         fail!("you must provide a branch name");
     } else if args.len() == 2 {
         return branch_new(&args[0], &args[1]);
@@ -196,7 +195,7 @@ pub fn branch(args: &[String]) {
                 Ok(x) => x,
                 Err(_) => fail!("you don't have any branches!"),
             };
-            return branch_existing(&options[chosen], true);
+            branch_existing(&options[chosen], true);
         }
         1 => {
             branch_existing(&args[0], true);
@@ -205,14 +204,14 @@ pub fn branch(args: &[String]) {
             branch_new(&args[0], &args[1]);
         }
         _ => fail!("too many arguments to `branch`!"),
-    };
+    }
 }
 
 pub fn get_status(mut c: std::process::Command) -> bool {
     match c.output() {
-        Ok(result) => return result.status.success(),
+        Ok(result) => result.status.success(),
         Err(e) => fail!("{:?}", e),
-    };
+    }
 }
 
 pub fn get_stdout(mut c: std::process::Command) -> Result<String, String> {
@@ -276,7 +275,7 @@ pub fn get_files() -> Vec<String> {
     }
 
     let mut output: Vec<_> = out
-        .split("\n")
+        .split('\n')
         .map(|x| x.trim().to_string())
         .filter(|x| !x.is_empty())
         .collect();
@@ -292,7 +291,7 @@ pub fn get_files() -> Vec<String> {
     }
 
     for item in out
-        .split("\n")
+        .split('\n')
         .map(|x| x.trim().to_string())
         .filter(|x| !x.is_empty())
     {
@@ -383,7 +382,7 @@ pub fn upload() {
         &filename,
         "
 # Write PR description above. 
-# Lines starting with # will be ignored.
+# Lines starting with a single # will be ignored.
 ",
     )
     .unwrap();
@@ -403,7 +402,7 @@ pub fn upload() {
     let mut title = String::new();
     while let Some(line) = description_iter.next() {
         let line = line.trim();
-        if line.is_empty() || line.starts_with("#") {
+        if line.is_empty() || line.starts_with('#') {
             continue;
         }
         title = line.to_string();
@@ -415,7 +414,10 @@ pub fn upload() {
     }
 
     let body = description_iter
-        .filter(|line| !line.trim().starts_with("#"))
+        .filter(|line| {
+            let trimmed_line = line.trim();
+            !trimmed_line.starts_with('#') || trimmed_line.starts_with("##")
+        })
         .collect::<Vec<_>>()
         .join("\n");
     let body_filename = format!("/tmp/g2.{}.body", branch_config.branch_name);

@@ -1,5 +1,5 @@
 pub fn select<S: ToString + std::fmt::Display + ?Sized>(options: &[&S]) -> Result<usize, ()> {
-    if options.len() == 0 {
+    if options.is_empty() {
         return Err(());
     }
 
