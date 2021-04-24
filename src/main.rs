@@ -3,6 +3,7 @@ mod fail;
 
 mod cmd;
 mod conf;
+mod tui;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
