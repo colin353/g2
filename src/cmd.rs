@@ -1,4 +1,5 @@
 use crate::conf;
+use crate::tui;
 
 use std::process::{Command, Stdio};
 
@@ -162,11 +163,10 @@ pub fn new(args: &[String]) {
     println!("choose which repository to use:");
     let config = conf::get_config();
     let options: Vec<_> = config.repos.iter().map(|x| x.short_name()).collect();
-    let chosen: usize = dialoguer::Select::new()
-        .default(0)
-        .items(&options)
-        .interact()
-        .unwrap();
+    let chosen = match tui::select(&options) {
+        Ok(x) => x,
+        Err(_) => fail!("you have no repositories! clone one first"),
+    };
     branch_new(options[chosen], &args[0]);
 }
 
@@ -189,12 +189,11 @@ pub fn branch(args: &[String]) {
             // Couldn't guess branch name, let's select it via tui
             let config = conf::get_config();
             let options: Vec<_> = config.branches.iter().map(|x| &x.name).collect();
-            let chosen: usize = dialoguer::Select::new()
-                .default(0)
-                .items(&options)
-                .interact()
-                .unwrap();
 
+            let chosen = match tui::select(&options) {
+                Ok(x) => x,
+                Err(_) => fail!("you don't have any branches!"),
+            };
             return branch_existing(&options[chosen], true);
         }
         1 => {
