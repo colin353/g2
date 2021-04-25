@@ -350,11 +350,10 @@ pub fn sync() {
     snapshot(&branch_config.branch_name);
 
     // Try to merge
-    let mut c = std::process::Command::new("git");
-    c.arg("merge").arg(repo_config.main_branch);
-    unwrap_or_fail(get_stdout(c));
-
-    // TODO: detect/explain/guide conflict resolution?
+    let (_, res) = cmd::system("git", &["merge", &repo_config.main_branch], None, true);
+    if res.is_err() {
+        fail!("failed to sync!");
+    }
 }
 
 pub fn upload() {
