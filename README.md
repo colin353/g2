@@ -31,7 +31,7 @@ g2 auto
 First, double check that your installation is successful:
 
 ```
-$> g2 check
+$ g2 check
 ```
 
 If everything is set up correctly, this will print out something like:
@@ -51,14 +51,14 @@ If it fails, follow the instructions to fix the problem.
 Next, clone a repository using `g2 clone`, e.g.
 
 ```
-$> g2 clone git@github.com:colin353/g2.git
+$ g2 clone git@github.com:colin353/g2.git
 ```
 
 You can use SSH or HTTPS, whatever works with git works with g2. Note, this checks out the repo
 to ~/.g2/repos, not to whatever directory you're in. To start developing, you'll need to create a branch:
 
 ```
-$> g2 new my-bugfix
+$ g2 new my-bugfix
 ```
 
 This will create a git worktree branch called `my-bugfix` which is based on `main`. If you have teleport set up,
@@ -67,7 +67,7 @@ it will automatically jump you to that directory.
 Now make some changes in the branch. If you want to see your changes, you can use
 
 ```
-$> g2 status
+$ g2 status
 ```
 
 which will show something like 
@@ -82,7 +82,7 @@ Here, I've made a couple of changes to my README and added a new file. Next I wa
 based on these changes, so run `g2 upload`:
 
 ```
-$> g2 upload
+$ g2 upload
 ```
 
 Your editor will open for you to add a title and description. Once you close the editor, a PR will
