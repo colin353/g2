@@ -34,3 +34,4 @@ g2 auto
  - [ ] When pushing a PR, change the last commit message to be the PR title?
  - [ ] Reduce dependencies?
  - [ ] Zsh/bash completions
+ - [ ] Support branch prefixes
