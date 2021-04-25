@@ -464,7 +464,7 @@ pub fn upload() {
             &format!("body={}", body),
         ],
         None,
-        true,
+        false,
     );
     if result.is_err() {
         eprintln!("failed to create PR!");
