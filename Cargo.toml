@@ -8,6 +8,7 @@ homepage = "https://github.com/colin353/g2"
 documentation = "https://github.com/colin353/g2"
 repository = "https://github.com/colin353/g2"
 readme = "README.md"
+description = "An alternative terminal interface for git"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
