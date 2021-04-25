@@ -319,11 +319,11 @@ fn snapshot(msg: &str) {
     }
 
     if !conflicts.is_empty() {
-        println!("the following files contain SCM change markers:");
+        println!("the following files contain SCM change markers:\n");
         for conflict in conflicts {
-            println!("{}", conflict);
+            println!("  {}", conflict);
         }
-        fail!("resolve the conflicts first, then run `g2 sync` again");
+        fail!("\nresolve the conflicts first, then run `g2 sync` again");
     }
 
     let mut c = std::process::Command::new("git");
@@ -350,11 +350,36 @@ pub fn sync() {
     snapshot(&branch_config.branch_name);
 
     // Try to merge
-    let mut c = std::process::Command::new("git");
-    c.arg("merge").arg(repo_config.main_branch);
-    unwrap_or_fail(get_stdout(c));
+    let (_, res) = cmd::system("git", &["merge", &repo_config.main_branch], None, false);
+    if res.is_err() {
+        // There may have been a conflict
+        let (out, res) = cmd::system(
+            "git",
+            &["diff", "--name-only", "--diff-filter=U"],
+            None,
+            false,
+        );
+        if res.is_err() {
+            fail!("failed to sync!");
+        }
 
-    // TODO: detect/explain/guide conflict resolution?
+        let mut has_conflicts = false;
+        for conflict in out.lines().map(|x| x.trim()).filter(|x| !x.is_empty()) {
+            if !has_conflicts {
+                has_conflicts = true;
+                eprintln!("There are some merge conflicts:\n");
+            }
+
+            eprintln!(" {}", conflict);
+        }
+
+        if !has_conflicts {
+            // If there are no conflicts and we failed to sync, then there's a problem
+            fail!("unexpectedly failed to sync!");
+        }
+
+        eprintln!("\nfix the conflicts, then run `g2 sync` again");
+    }
 }
 
 pub fn upload() {

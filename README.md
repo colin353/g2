@@ -27,7 +27,7 @@ g2 auto
 
 ### Todo list:
  
- - [ ] Detect and show merge conflicts better
+ - [x] Detect and show merge conflicts better
  - [ ] Bypass gh and create PRs via API?
  - [ ] More info on installation/usage (including `g2 auto`, teleport setup)
  - [ ] Demo GIF
