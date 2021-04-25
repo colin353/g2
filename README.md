@@ -26,6 +26,27 @@ g2 () {
 g2 auto
 ```
 
+### Usage
+
+Fist, clone a repository using `g2 clone`, e.g.
+
+```
+g2 clone git@github.com:colin353/g2.git
+```
+
+You can use SSH or HTTPS, whatever works with git works with g2.
+
+
+Next, create a branch using `g2 new`:
+
+```
+g2 new my-bugfix
+```
+
+This will create a branch called "my-bugfix" which is based on `main`. If you
+want, you can configure a branch prefix too, e.g.  if it's common on your team
+to prefix your branch names with your username.
+
 ### Todo list:
  
  - [x] Detect and show merge conflicts better
