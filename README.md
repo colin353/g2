@@ -1,12 +1,16 @@
 ## g2, an alternative terminal interface for git
 
+![crates.io](https://img.shields.io/crates/v/g2.svg)
+
 ### Installation
 
-**With cargo**: Run `cargo install g2`
-**From source**: Clone this repository and run `cargo install --path.`
+*Using cargo *: Run `cargo install g2`
+*From source*: Clone this repository and run `cargo install --path=.`
 
-To enable **teleport**, which allows `g2` to change your
-current directory, install this into your `~/.zshrc`:
+Once you've installed `g2`, run `g2 check` to verify that your system is set up correctly.
+
+To enable `teleport`, which allows `g2` to change your
+current directory in zsh install this into your `~/.zshrc`:
 
 ```
 g2 () {
@@ -21,10 +25,8 @@ g2 () {
 g2 auto
 ```
 
-
 ### Todo list:
  
- - [ ] Publish crate
  - [ ] Bypass gh and create PRs via API?
  - [ ] More info on installation/usage (including `g2 auto`, teleport setup)
  - [ ] Demo GIF
