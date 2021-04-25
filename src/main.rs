@@ -23,6 +23,7 @@ fn main() {
         "new" => actions::new(&args[2..]),
         "status" => actions::status(),
         "revert" => actions::revert(&args[2..]),
+        "check" => actions::check(),
         _ => fail!("command `{}` not found", args[1]),
     }
 }
