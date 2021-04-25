@@ -137,6 +137,7 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
     opts.reference(Some(&branch_ref));
 
     let path = format!("{}/branches/{}", root_dir, branch_name);
+    println!("path = {}", path);
 
     repo.worktree(&full_branch_name, std::path::Path::new(&path), Some(&opts))
         .unwrap();
@@ -503,7 +504,7 @@ pub fn clean() {
                             .as_secs()
                     ),
                 ],
-                None, // TODO: change working directory to ~/.g2/repos/<REPO_NAME>
+                Some(&format!("{}/repos/{}", root_dir, branch.repo)),
                 false,
             );
 
