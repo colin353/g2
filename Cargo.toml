@@ -1,8 +1,13 @@
 [package]
 name = "g2"
 version = "0.1.0"
-authors = ["Colin Merkel <colin.merkel@tophatmonocle.com>"]
+authors = ["Colin Merkel <colin.merkel@gmail.com>"]
 edition = "2018"
+license = "MIT"
+homepage = "https://github.com/colin353/g2"
+documentation = "https://github.com/colin353/g2"
+repository = "https://github.com/colin353/g2"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
