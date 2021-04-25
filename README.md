@@ -2,7 +2,8 @@
 
 ### Installation
 
-Clone this repository and run `cargo install --path=.`
+**With cargo**: Run `cargo install g2`
+**From source**: Clone this repository and run `cargo install --path.`
 
 To enable **teleport**, which allows `g2` to change your
 current directory, install this into your `~/.zshrc`:
