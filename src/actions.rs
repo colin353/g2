@@ -383,7 +383,7 @@ pub fn sync() {
 }
 
 pub fn upload() {
-    let (_, branch_config) = conf::get_current_dir_configs();
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
     snapshot(&branch_config.branch_name);
 
     let (_, result) = cmd::system(
@@ -446,18 +446,22 @@ pub fn upload() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let body_filename = format!("/tmp/g2.{}.body", branch_config.branch_name);
-    std::fs::write(&body_filename, body).unwrap();
 
     let (_, result) = cmd::system(
         "gh",
         &[
-            "pr",
-            "create",
-            "--title",
-            &title,
-            "--body-file",
-            &body_filename,
+            "api",
+            "-X",
+            "POST",
+            "/repos/:owner/:repo/pulls",
+            "-F",
+            &format!("base={}", repo_config.main_branch),
+            "-F",
+            &format!("head={}", branch_config.branch_name),
+            "-F",
+            &format!("title={}", title),
+            "-F",
+            &body,
         ],
         None,
         true,
