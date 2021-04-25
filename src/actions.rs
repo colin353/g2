@@ -507,6 +507,7 @@ pub fn clean() {
 }
 
 pub fn status() {
+    let root_dir = conf::root_dir();
     let (repo_config, branch_config) = conf::get_current_dir_configs();
     let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
 
@@ -548,6 +549,13 @@ pub fn status() {
 
     let mut file_stats = Vec::new();
     for file in get_files() {
+        // First, check if the file is deleted in current branch.
+        let path = format!("{}/branches/{}/{}", root_dir, branch_config.name, file);
+        if !std::path::Path::new(&path).exists() {
+            file_stats.push(("[deleted]".to_string(), file));
+            continue;
+        }
+
         let (out, result) = cmd::system("git", &["diff", "--numstat", &base, &file], None, false);
         if result.is_err() {
             fail!("couldn't run git diff!");
