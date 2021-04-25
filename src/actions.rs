@@ -447,7 +447,7 @@ pub fn upload() {
         .collect::<Vec<_>>()
         .join("\n");
 
-    let (_, result) = cmd::system(
+    let (out, result) = cmd::system(
         "gh",
         &[
             "api",
@@ -462,12 +462,17 @@ pub fn upload() {
             &format!("title={}", title),
             "-F",
             &format!("body={}", body),
+            "--jq",
+            ".html_url",
         ],
         None,
         false,
     );
+
     if result.is_err() {
         eprintln!("failed to create PR!");
+    } else {
+        println!("PR created, go to {}", out.trim());
     }
 }
 
