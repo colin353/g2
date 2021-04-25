@@ -501,6 +501,42 @@ pub fn status() {
     let (repo_config, branch_config) = conf::get_current_dir_configs();
     let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
 
+    // Check if this PR exists
+    let (out, res) = cmd::system(
+        "gh",
+        &["pr", "view", "--json", "number", "--jq", ".number"],
+        None,
+        false,
+    );
+    if res.is_err() {
+        println!("Local branch ({})", branch_config.branch_name);
+    } else {
+        let pr_number = out.trim();
+
+        let (out, res) = cmd::system(
+            "gh",
+            &[
+                "api",
+                "-X",
+                "GET",
+                &format!("/repos/:owner/:repo/pulls/{}", pr_number),
+                "--jq",
+                ".title, .html_url",
+            ],
+            None,
+            false,
+        );
+        if res.is_err() {
+            println!("Local branch ({})", branch_config.branch_name);
+        } else {
+            let mut lines = out.lines().map(|x| x.trim());
+            let title = lines.next().unwrap();
+            let url = lines.next().unwrap();
+
+            println!("{} ({})", title, url);
+        }
+    }
+
     let mut file_stats = Vec::new();
     for file in get_files() {
         let (out, result) = cmd::system("git", &["diff", "--numstat", &base, &file], None, false);
@@ -529,7 +565,12 @@ pub fn status() {
     let max_numstats = file_stats.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
 
     for (num_summary, filename) in file_stats {
-        println!("{:>width$} {}", num_summary, filename, width = max_numstats);
+        println!(
+            "  {:>width$} {}",
+            num_summary,
+            filename,
+            width = max_numstats
+        );
     }
 }
 
