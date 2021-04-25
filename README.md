@@ -4,9 +4,9 @@
 
 ### Installation
 
-_Using cargo_: Run `cargo install g2`
+**Using cargo**: Run `cargo install g2`
 
-_From source_: Clone this repository and run `cargo install --path=.`
+**From source**: Clone this repository and run `cargo install --path=.`
 
 Once you've installed `g2`, run `g2 check` to verify that your system is set up correctly.
 
