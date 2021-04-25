@@ -319,11 +319,11 @@ fn snapshot(msg: &str) {
     }
 
     if !conflicts.is_empty() {
-        println!("the following files contain SCM change markers:");
+        println!("the following files contain SCM change markers:\n");
         for conflict in conflicts {
-            println!("{}", conflict);
+            println!("  {}", conflict);
         }
-        fail!("resolve the conflicts first, then run `g2 sync` again");
+        fail!("\nresolve the conflicts first, then run `g2 sync` again");
     }
 
     let mut c = std::process::Command::new("git");
@@ -350,7 +350,7 @@ pub fn sync() {
     snapshot(&branch_config.branch_name);
 
     // Try to merge
-    let (_, res) = cmd::system("git", &["merge", &repo_config.main_branch], None, true);
+    let (_, res) = cmd::system("git", &["merge", &repo_config.main_branch], None, false);
     if res.is_err() {
         // There may have been a conflict
         let (out, res) = cmd::system(
