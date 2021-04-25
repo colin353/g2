@@ -507,3 +507,61 @@ pub fn status() {
         println!("{:>width$} {}", num_summary, filename, width = max_numstats);
     }
 }
+
+pub fn check() {
+    eprintln!("g2 is checking your setup...");
+
+    let mut any_failures = false;
+
+    let (_, result) = cmd::system("which", &["git"], None, false);
+    if result.is_err() {
+        eprintln!("[err] git isn't installed!");
+        eprintln!("To fix this, install git, then try again!\n");
+        any_failures = true;
+    } else {
+        eprintln!(" [ok] the git command exists");
+    }
+
+    let (_, result) = cmd::system("which", &["gh"], None, false);
+    if result.is_err() {
+        eprintln!("[err] the gh command isn't installed!\n");
+        eprintln!("To fix this, install the gh command, see https://github.com/cli/cli");
+        eprintln!("then try again!\n");
+        any_failures = true;
+    } else {
+        eprintln!(" [ok] the gh command exists");
+
+        // Only check login state if the gh command is installed
+        let (_, result) = cmd::system("gh", &["auth", "status"], None, false);
+        if result.is_err() {
+            eprintln!("[err] you aren't logged into github via gh!\n");
+
+            println!("To fix this, run the command:");
+            println!("  gh auth login");
+            println!("and then try again!\n");
+            any_failures = true;
+        } else {
+            eprintln!(" [ok] you're logged into github");
+        }
+    }
+
+    let (_, result) = cmd::system("which", &["tmux"], None, false);
+    if result.is_err() {
+        eprintln!("[err] tmux isn't installed!\n");
+        eprintln!("Installing tmux is optional, but it makes g2 a lot better.");
+        eprintln!("Install tmux and try again\n");
+    } else {
+        eprintln!(" [ok] tmux is installed");
+
+        // Only check if we're in a tmux window if tmux is installed
+        if get_tmux_name().is_some() {
+            eprintln!(" [ok] you are currently in a tmux window");
+        } else {
+            eprintln!("[err] you're not in a tmux window!");
+        }
+    }
+
+    if any_failures {
+        fail!();
+    }
+}
