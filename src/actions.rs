@@ -487,6 +487,30 @@ pub fn clean() {
         if output.contains("MERGED\n") || output.contains("CLOSED\n") {
             println!("branch {} is already merged!", branch.branch_name);
 
+            // Rename the branch to avoid name conflicts later
+            let (_, res) = cmd::system(
+                "git",
+                &[
+                    "branch",
+                    "-m",
+                    &branch.branch_name,
+                    &format!(
+                        "{}__cleaned_{}",
+                        branch.branch_name,
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs()
+                    ),
+                ],
+                None, // TODO: change working directory to ~/.g2/repos/<REPO_NAME>
+                false,
+            );
+
+            if res.is_err() {
+                eprintln!("failed to rename branch, proceeding anyway...");
+            }
+
             std::fs::remove_dir_all(&branch_dir).unwrap();
             return false;
         }
