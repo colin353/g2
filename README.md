@@ -36,3 +36,4 @@ g2 auto
  - [ ] Reduce dependencies?
  - [ ] Zsh/bash completions
  - [ ] Support branch prefixes
+ - [ ] Write docs on usage
