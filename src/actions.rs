@@ -383,7 +383,7 @@ pub fn sync() {
 }
 
 pub fn upload() {
-    let (_, branch_config) = conf::get_current_dir_configs();
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
     snapshot(&branch_config.branch_name);
 
     let (_, result) = cmd::system(
@@ -446,24 +446,33 @@ pub fn upload() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let body_filename = format!("/tmp/g2.{}.body", branch_config.branch_name);
-    std::fs::write(&body_filename, body).unwrap();
 
-    let (_, result) = cmd::system(
+    let (out, result) = cmd::system(
         "gh",
         &[
-            "pr",
-            "create",
-            "--title",
-            &title,
-            "--body-file",
-            &body_filename,
+            "api",
+            "-X",
+            "POST",
+            "/repos/:owner/:repo/pulls",
+            "-F",
+            &format!("base={}", repo_config.main_branch),
+            "-F",
+            &format!("head={}", branch_config.branch_name),
+            "-F",
+            &format!("title={}", title),
+            "-F",
+            &format!("body={}", body),
+            "--jq",
+            ".html_url",
         ],
         None,
-        true,
+        false,
     );
+
     if result.is_err() {
         eprintln!("failed to create PR!");
+    } else {
+        println!("PR created, go to {}", out.trim());
     }
 }
 
@@ -501,6 +510,42 @@ pub fn status() {
     let (repo_config, branch_config) = conf::get_current_dir_configs();
     let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
 
+    // Check if this PR exists
+    let (out, res) = cmd::system(
+        "gh",
+        &["pr", "view", "--json", "number", "--jq", ".number"],
+        None,
+        false,
+    );
+    if res.is_err() {
+        println!("Local branch ({})", branch_config.branch_name);
+    } else {
+        let pr_number = out.trim();
+
+        let (out, res) = cmd::system(
+            "gh",
+            &[
+                "api",
+                "-X",
+                "GET",
+                &format!("/repos/:owner/:repo/pulls/{}", pr_number),
+                "--jq",
+                ".title, .html_url",
+            ],
+            None,
+            false,
+        );
+        if res.is_err() {
+            println!("Local branch ({})", branch_config.branch_name);
+        } else {
+            let mut lines = out.lines().map(|x| x.trim());
+            let title = lines.next().unwrap();
+            let url = lines.next().unwrap();
+
+            println!("{} ({})", title, url);
+        }
+    }
+
     let mut file_stats = Vec::new();
     for file in get_files() {
         let (out, result) = cmd::system("git", &["diff", "--numstat", &base, &file], None, false);
@@ -529,7 +574,12 @@ pub fn status() {
     let max_numstats = file_stats.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
 
     for (num_summary, filename) in file_stats {
-        println!("{:>width$} {}", num_summary, filename, width = max_numstats);
+        println!(
+            "  {:>width$} {}",
+            num_summary,
+            filename,
+            width = max_numstats
+        );
     }
 }
 
