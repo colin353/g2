@@ -34,18 +34,33 @@ Fist, clone a repository using `g2 clone`, e.g.
 g2 clone git@github.com:colin353/g2.git
 ```
 
-You can use SSH or HTTPS, whatever works with git works with g2.
-
-
-Next, create a branch using `g2 new`:
+You can use SSH or HTTPS, whatever works with git works with g2. Note, this checks out the repo
+to ~/.g2/repos, not to whatever directory you're in. To start developing, create a branch:
 
 ```
 g2 new my-bugfix
 ```
 
-This will create a branch called "my-bugfix" which is based on `main`. If you
-want, you can configure a branch prefix too, e.g.  if it's common on your team
-to prefix your branch names with your username.
+This will create a git worktree branch called `my-bugfix` which is based on `main`. If you have teleport set up,
+it will automatically jump you to that directory.
+
+Now make some changes in the branch. If you want to see your changes, you can use
+
+```
+g2 status
+```
+
+which will show something like 
+
+```
+Local branch (my-bugfix)
+  [+16, -6] README.md
+      [new] my-new-file.txt
+```
+
+Here, I've made a couple of changes to my README and added a new file. Next I want to create a PR
+based on these changes, so run `g2 upload`.
+
 
 ### Todo list:
  
