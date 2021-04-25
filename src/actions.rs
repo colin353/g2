@@ -618,10 +618,14 @@ pub fn check() {
         }
     }
 
-    let editor = match std::env::var("SHELL") {
+    match std::env::var("SHELL") {
         Ok(x) if x.contains("/zsh") => {
             // Check teleport setup
             let (out, res) = cmd::system("zsh", &["-c", "source ~/.zshrc; type g2"], None, false);
+            if res.is_err() {
+                eprintln!("[err] couldn't run `type g2`, is g2 installed?");
+            }
+
             if out.contains("g2 is a shell function") {
                 eprintln!(" [ok] you're using zsh, and teleport is set up correctly");
             } else {
@@ -643,7 +647,7 @@ pub fn check() {
                 );
             }
         }
-        Ok(x) => {
+        Ok(_) => {
             eprintln!(" [ok] You're using an unsupported shell, so teleport won't work");
         }
         Err(_) => {
