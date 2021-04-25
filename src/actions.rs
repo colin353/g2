@@ -507,3 +507,18 @@ pub fn status() {
         println!("{:>width$} {}", num_summary, filename, width = max_numstats);
     }
 }
+
+pub fn revert(args: &[String]) {
+    if args.len() != 1 {
+        fail!("you must provide exactly one argument, the filename to revert");
+    }
+    let name = &args[0];
+
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+
+    let (_, res) = cmd::system("git", &["checkout", &base, name], None, false);
+    if res.is_err() {
+        fail!("couldn't revert file!");
+    }
+}
