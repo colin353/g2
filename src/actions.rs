@@ -352,7 +352,33 @@ pub fn sync() {
     // Try to merge
     let (_, res) = cmd::system("git", &["merge", &repo_config.main_branch], None, true);
     if res.is_err() {
-        fail!("failed to sync!");
+        // There may have been a conflict
+        let (out, res) = cmd::system(
+            "git",
+            &["diff", "--name-only", "--diff-filter=U"],
+            None,
+            false,
+        );
+        if res.is_err() {
+            fail!("failed to sync!");
+        }
+
+        let mut has_conflicts = false;
+        for conflict in out.lines().map(|x| x.trim()).filter(|x| !x.is_empty()) {
+            if !has_conflicts {
+                has_conflicts = true;
+                eprintln!("There are some merge conflicts:\n");
+            }
+
+            eprintln!(" {}", conflict);
+        }
+
+        if !has_conflicts {
+            // If there are no conflicts and we failed to sync, then there's a problem
+            fail!("unexpectedly failed to sync!");
+        }
+
+        eprintln!("\nfix the conflicts, then run `g2 sync` again");
     }
 }
 
