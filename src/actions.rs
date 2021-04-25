@@ -461,7 +461,7 @@ pub fn upload() {
             "-F",
             &format!("title={}", title),
             "-F",
-            &body,
+            &format!("body={}", body),
         ],
         None,
         true,
