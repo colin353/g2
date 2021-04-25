@@ -593,6 +593,39 @@ pub fn check() {
         }
     }
 
+    let editor = match std::env::var("SHELL") {
+        Ok(x) if x.contains("/zsh") => {
+            // Check teleport setup
+            let (out, res) = cmd::system("zsh", &["-c", "source ~/.zshrc; type g2"], None, false);
+            if out.contains("g2 is a shell function") {
+                eprintln!(" [ok] you're using zsh, and teleport is set up correctly");
+            } else {
+                eprintln!("[err] you're using zsh, but teleport is not set up\n");
+                eprintln!("To fix this, add this to your ~/.zshrc:");
+                eprintln!(
+                    "
+    g2 () {{
+      G2=`whence -p g2`
+      $G2 $@
+
+      if [ $? -eq 3 ]
+      then
+        cd `cat /tmp/g2-destination`
+      fi
+    }}
+    g2 auto
+                    "
+                );
+            }
+        }
+        Ok(x) => {
+            eprintln!(" [ok] You're using an unsupported shell, so teleport won't work");
+        }
+        Err(_) => {
+            eprintln!("[err] I'm not sure which shell you're using")
+        }
+    };
+
     if any_failures {
         fail!();
     }
