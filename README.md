@@ -28,11 +28,10 @@ g2 auto
 
 ### Todo list:
  
- - [x] Detect and show merge conflicts better
  - [ ] Bypass gh and create PRs via API?
  - [ ] More info on installation/usage (including `g2 auto`, teleport setup)
  - [ ] Demo GIF
  - [ ] When pushing a PR, change the last commit message to be the PR title?
  - [ ] Reduce dependencies?
  - [ ] Zsh/bash completions
- - [ ] Support branch prefixes
+ - [x] Support branch prefixes
