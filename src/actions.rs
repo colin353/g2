@@ -508,6 +508,38 @@ pub fn status() {
     }
 }
 
+pub fn revert(args: &[String]) {
+    if args.len() != 1 {
+        fail!("you must provide exactly one argument, the filename to revert");
+    }
+    let name = &args[0];
+
+    let (repo_config, branch_config) = conf::get_current_dir_configs();
+    let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
+
+    let (_, res) = cmd::system("git", &["checkout", &base, name], None, false);
+    if res.is_err() {
+        // Check if the file existed in the version.
+        let (_, res) = cmd::system(
+            "git",
+            &["cat-file", "-e", &format!("{}:{}", base, name)],
+            None,
+            false,
+        );
+        if res.is_err() {
+            // If the file didn't exist previously, delete it
+            match std::fs::remove_file(name) {
+                Ok(_) => (),
+                Err(_) => {
+                    fail!("couldn't revert file! does that file exist?");
+                }
+            }
+        } else {
+            fail!("couldn't revert file!");
+        }
+    }
+}
+
 pub fn check() {
     eprintln!("g2 is checking your setup...");
 
