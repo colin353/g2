@@ -748,18 +748,23 @@ fn format_description(input: &str) -> String {
     let mut output = String::new();
     let mut prev_text = false;
     for line in input.lines().map(|l| l.trim()) {
-        if line.is_empty() {
-            if prev_text {
-                output.push('\n');
-            }
+        if line.starts_with(char::is_numeric) || line.starts_with('-') || line.starts_with('[') {
+            output.push_str(&line);
             output.push('\n');
-            prev_text = false;
         } else {
-            if prev_text {
-                output.push(' ');
+            if line.is_empty() {
+                if prev_text {
+                    output.push('\n');
+                }
+                output.push('\n');
+                prev_text = false;
+            } else {
+                if prev_text {
+                    output.push(' ');
+                }
+                output.push_str(line);
+                prev_text = true;
             }
-            output.push_str(line);
-            prev_text = true;
         }
     }
 
@@ -785,6 +790,28 @@ mod tests {
         .trim();
 
         let expected = "First line\n\nSecond line which contains a lot more content split into multiple lines which are supposed to be joined together into a single continuous line.\n\nMore content.";
+        assert_eq!(format_description(description), expected);
+    }
+
+    #[test]
+    fn test_pr_description_with_bullets() {
+        let description = "
+
+        First line
+
+        1. Content
+        2. another point
+        3. something else
+
+        - bullet
+        - bullet
+
+        More content.
+        "
+        .trim();
+
+        let expected =
+            "First line\n\n1. Content\n2. another point\n3. something else\n\n- bullet\n- bullet\n\nMore content.";
         assert_eq!(format_description(description), expected);
     }
 }
