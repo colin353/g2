@@ -751,20 +751,18 @@ fn format_description(input: &str) -> String {
         if line.starts_with(char::is_numeric) || line.starts_with('-') || line.starts_with('[') {
             output.push_str(&line);
             output.push('\n');
-        } else {
-            if line.is_empty() {
-                if prev_text {
-                    output.push('\n');
-                }
+        } else if line.is_empty() {
+            if prev_text {
                 output.push('\n');
-                prev_text = false;
-            } else {
-                if prev_text {
-                    output.push(' ');
-                }
-                output.push_str(line);
-                prev_text = true;
             }
+            output.push('\n');
+            prev_text = false;
+        } else {
+            if prev_text {
+                output.push(' ');
+            }
+            output.push_str(line);
+            prev_text = true;
         }
     }
 
