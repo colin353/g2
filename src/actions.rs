@@ -447,6 +447,8 @@ pub fn upload() {
         .collect::<Vec<_>>()
         .join("\n");
 
+    let body = format_description(&body);
+
     let (out, result) = cmd::system(
         "gh",
         &[
@@ -739,5 +741,50 @@ pub fn check() {
 
     if any_failures {
         fail!();
+    }
+}
+
+fn format_description(input: &str) -> String {
+    let mut output = String::new();
+    let mut prev_text = false;
+    for line in input.lines().map(|l| l.trim()) {
+        if line.is_empty() {
+            if prev_text {
+                output.push('\n');
+            }
+            output.push('\n');
+            prev_text = false;
+        } else {
+            if prev_text {
+                output.push(' ');
+            }
+            output.push_str(line);
+            prev_text = true;
+        }
+    }
+
+    output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pr_description() {
+        let description = "
+
+        First line
+
+        Second line which contains a lot more content split into multiple
+        lines which are supposed to be joined together into a single continuous
+        line.
+
+        More content.
+        "
+        .trim();
+
+        let expected = "First line\n\nSecond line which contains a lot more content split into multiple lines which are supposed to be joined together into a single continuous line.\n\nMore content.";
+        assert_eq!(format_description(description), expected);
     }
 }
