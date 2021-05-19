@@ -115,7 +115,9 @@ pub fn branch_new(repo_name: &str, branch_name: &str) {
         fail!("couldn't fetch origin!");
     }
 
-    let branch = repo.find_branch("main", git2::BranchType::Local).unwrap();
+    let branch = repo
+        .find_branch(&repo_config.main_branch, git2::BranchType::Local)
+        .unwrap();
     let reference = branch.into_reference();
     let commit = reference.peel_to_commit().unwrap();
 
