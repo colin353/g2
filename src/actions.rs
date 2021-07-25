@@ -251,11 +251,18 @@ pub fn merge_base(branch1: &str, branch2: &str) -> String {
     out.trim().to_owned()
 }
 
-pub fn diff() {
+pub fn diff(args: &[String]) {
     let (repo_config, branch_config) = conf::get_current_dir_configs();
     let base = merge_base(&branch_config.branch_name, &repo_config.main_branch);
 
-    let (_, result) = cmd::system("git", &["diff", &base], None, true);
+    let result = if args.len() > 0 {
+        let (_, result) = cmd::system("git", &["diff", &base, &args[0]], None, true);
+        result
+    } else {
+        let (_, result) = cmd::system("git", &["diff", &base], None, true);
+        result
+    };
+
     if result.is_err() {
         fail!("unable to get diff!");
     }

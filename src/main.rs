@@ -14,7 +14,7 @@ fn main() {
     match args[1].as_str() {
         "clone" => actions::clone(args[2].as_str()),
         "branch" => actions::branch(&args[2..]),
-        "diff" => actions::diff(),
+        "diff" => actions::diff(&args[2..]),
         "files" => actions::files(),
         "sync" => actions::sync(),
         "upload" => actions::upload(),
