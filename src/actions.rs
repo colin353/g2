@@ -412,7 +412,7 @@ pub fn upload() {
     }
 
     // Create a pull request
-    let filename = format!("/tmp/g2.{}.pull-request", branch_config.branch_name);
+    let filename = format!("/tmp/g2.{}.pull-request", branch_config.name);
     std::fs::write(
         &filename,
         "
@@ -624,6 +624,88 @@ pub fn status() {
             width = max_numstats
         );
     }
+}
+
+pub fn adopt(args: &[String]) {
+    let mut config = conf::get_config();
+    let (repo_name, branch_name) = if args.len() == 2 {
+        (args[0].to_string(), args[1].to_string())
+    } else if args.len() == 1 {
+        let options: Vec<_> = config.repos.iter().map(|x| x.short_name()).collect();
+        let chosen = match tui::select("choose which repository to use:", &options) {
+            Ok(x) => x,
+            Err(_) => fail!("you have no repositories! clone one first"),
+        };
+        (options[chosen].to_string(), args[0].to_string())
+    } else {
+        fail!("you must specify a repo name and a branch name");
+    };
+
+    let root_dir = conf::root_dir();
+
+    let repo_config = match config.get_repo_config(&repo_name) {
+        Some(x) => x,
+        None => fail!(
+            "repo `{}` isn't cloned! do `g2 clone <repo_path>` first",
+            repo_name
+        ),
+    };
+
+    // Fetch origin. Can't do this with libgit2 because it requires authentication
+    let (_, result) = cmd::system(
+        "git",
+        &[
+            "fetch",
+            "-q",
+            "origin",
+            &format!("{}:{}", &repo_config.main_branch, &repo_config.main_branch),
+        ],
+        Some(&format!("{}/repos/{}", root_dir, repo_name)),
+        true,
+    );
+    if result.is_err() {
+        fail!("couldn't fetch origin!");
+    }
+
+    // Fetch target branch.
+    let (_, result) = cmd::system(
+        "git",
+        &[
+            "fetch",
+            "-q",
+            "origin",
+            &format!("{}:{}", &branch_name, &branch_name),
+        ],
+        Some(&format!("{}/repos/{}", root_dir, repo_name)),
+        true,
+    );
+    if result.is_err() {
+        eprintln!("is the branch already checked out locally? continuing with local branch...");
+    }
+
+    let repo = git2::Repository::open_bare(format!("{}/repos/{}", root_dir, repo_name)).unwrap();
+
+    // Check that the branch doesn't already exist
+    let dir_name = config.adopt_branch(branch_name.to_string(), repo_name.to_string());
+
+    let branch_ref = repo
+        .find_branch(&branch_name, git2::BranchType::Local)
+        .unwrap()
+        .into_reference();
+
+    let mut opts = git2::WorktreeAddOptions::new();
+    opts.reference(Some(&branch_ref));
+
+    let path = format!("{}/branches/{}", root_dir, dir_name);
+
+    repo.worktree(&dir_name, std::path::Path::new(&path), Some(&opts))
+        .unwrap();
+
+    conf::set_config(&config);
+
+    println!("adopted branch {}, now go to `{}`", branch_name, path);
+    set_tmux_name(&dir_name);
+    cmd::teleport(&path);
 }
 
 pub fn revert(args: &[String]) {
