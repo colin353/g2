@@ -2,6 +2,8 @@
 
 ![crates.io](https://img.shields.io/crates/v/g2.svg)
 
+### Test changes
+
 ### Installation
 
 **Using cargo**: Run `cargo install g2`
