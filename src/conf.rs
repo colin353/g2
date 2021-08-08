@@ -78,6 +78,20 @@ impl Config {
         branch_name
     }
 
+    // Adopt a branch with a specific branch name, converting the name into something suitable for
+    // a directory name
+    pub fn adopt_branch(&mut self, branch_name: String, repo: String) -> String {
+        let name = branch_name.replace('/', "-");
+
+        self.branches.retain(|b| b.name != name);
+        self.branches.push(BranchConfig {
+            name: name.clone(),
+            repo,
+            branch_name,
+        });
+        name
+    }
+
     pub fn add_repo(&mut self, path: String, main_branch: String) {
         self.repos.retain(|s| s.path != path);
         self.repos.push(RepoConfig { path, main_branch })
