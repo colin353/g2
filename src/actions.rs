@@ -626,6 +626,12 @@ pub fn status() {
     }
 }
 
+pub fn adopt(args: &[String]) {
+    if args.len() != 2 {
+        fail!("you must specify a repo name and a branch name");
+    }
+}
+
 pub fn revert(args: &[String]) {
     if args.len() != 1 {
         fail!("you must provide exactly one argument, the filename to revert");

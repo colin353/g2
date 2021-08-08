@@ -24,6 +24,7 @@ fn main() {
         "status" => actions::status(),
         "revert" => actions::revert(&args[2..]),
         "check" => actions::check(),
+        "adopt" => actions::adopt(&args[2..]),
         _ => fail!("command `{}` not found", args[1]),
     }
 }
