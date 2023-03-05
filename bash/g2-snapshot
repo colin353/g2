@@ -3,12 +3,14 @@
 FILES=$($G2_INSTALL/g2-files)
 while IFS= read -r line; do
   if [ -f $line ]; then
-    if grep -q "<<<<<<<" $line; then
+    SCM="<<<"
+    if grep -q "$SCM<$SCM" $line; then
        echo "File contains SCM change markers:"
        echo $line
        exit 1
     fi
-    if grep -q ">>>>>>>" $line; then
+    SCM=">>>"
+    if grep -q "$SCM>$SCM" $line; then
        echo "File contains SCM change markers:"
        echo $line
        exit 1
