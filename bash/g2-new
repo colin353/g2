@@ -1,0 +1,25 @@
+#!/bin/bash
+
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+BRANCH=$(git branch --show-current)
+MERGE_BASE=$(git merge-base $DEFAULT_BRANCH $BRANCH)
+
+if [ -z "$1" ]; then
+  echo "Must provide an argument"
+  exit 1
+fi
+
+# Snapshot first
+$G2_INSTALL/g2-snapshot
+if [ $? -ne 0 ]; then
+  echo "Snapshot failed"
+  exit 1
+fi
+
+git fetch -q origin $DEFAULT_BRANCH:$DEFAULT_BRANCH
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+git checkout $DEFAULT_BRANCH
+git checkout -b $1

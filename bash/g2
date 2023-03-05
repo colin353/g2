@@ -1,0 +1,10 @@
+#!/bin/zsh
+
+G2_INSTALL="/workspaces/g2"
+if [ "$#" -lt 1 ]; then
+ echo "provide a command"
+ exit 1
+fi
+
+G2_INSTALL=$G2_INSTALL "$G2_INSTALL/g2-$1" "${@:2}"
+exit $?

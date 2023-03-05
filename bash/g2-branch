@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Commit if necessary
+$G2_INSTALL/g2-commit >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+# Choose a branch
+BRANCH=$(git --no-pager branch --color=never | cut -c 3- | $G2_INSTALL/sel --prompt="choose branch")
+
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+# Check out the branch
+git checkout $BRANCH
