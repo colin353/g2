@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Check if necessary to do this, otherwise skip
+git update-index --refresh >/dev/null 2>&1
+git diff-index --quiet HEAD --
+if [ $? -eq 0 ]; then
+  exit 0
+fi
+
+git add .
+git commit -m "$(git branch --show-current)"

@@ -1,0 +1,19 @@
+#!/bin/bash
+
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+BRANCH=$(git branch --show-current)
+MERGE_BASE=$(git merge-base $DEFAULT_BRANCH $BRANCH)
+
+ROOT=$(git rev-parse --show-toplevel)
+
+if [ -z "$1" ]; then
+  echo "Must provide an argument"
+  exit 1
+fi
+
+git checkout $MERGE_BASE $1 >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+  if [ -f "$ROOT/$1" ]; then
+    rm -rf $ROOT/$1
+  fi
+fi

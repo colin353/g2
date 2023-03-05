@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# Commit if necessary
+$G2_INSTALL/g2-commit >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "Commit failed"
+  exit 1
+fi
+
+# Push to remote
+git push --set-upstream origin HEAD
+
+# Check if a repository is set
+gh repo set-default --view >/dev/null 2&>1
+if [ $? -ne 0 ]; then
+  gh repo set-default >/dev/null 2&>1
+fi
+
+# Set if a PR exists
+gh pr view >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+  echo "Pull request already exists."
+  exit 0
+fi
+
+# Create a PR
+echo "" > /tmp/g2-pull-request
+echo "# Write PR description above." >> /tmp/g2-pull-request
+echo "# Lines starting with a single # will be ignored." >> /tmp/g2-pull-request
+
+$EDITOR /tmp/g2-pull-request
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+TITLE=$(head -n 1 /tmp/g2-pull-request)
+BODY=$(tail -n +2 /tmp/g2-pull-request | grep -v "^\s*[#\;]\|^\s*$")
+
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+
+PR_URL=$(gh api -X POST /repos/:owner/:repo/pulls \
+  -F base=$DEFAULT_BRANCH \
+  -F head=$(git branch --show-current) \
+  -F title="$TITLE" \
+  -F body="$BODY" \
+  --jq .html_url)
+
+echo $PR_URL
