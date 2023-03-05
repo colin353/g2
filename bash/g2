@@ -1,10 +1,9 @@
 #!/bin/zsh
-
-G2_INSTALL="/workspaces/g2"
+G2_INSTALL=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 if [ "$#" -lt 1 ]; then
  echo "provide a command"
  exit 1
 fi
 
-G2_INSTALL=$G2_INSTALL "$G2_INSTALL/g2-$1" "${@:2}"
+"$G2_INSTALL/g2-$1" "${@:2}"
 exit $?
