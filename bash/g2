@@ -1,5 +1,4 @@
 #!/bin/zsh
-G2_INSTALL=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 if [ "$#" -lt 1 ]; then
  echo "provide a command"
  exit 1
