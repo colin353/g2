@@ -11,9 +11,9 @@ fi
 git push --set-upstream origin HEAD
 
 # Check if a repository is set
-gh repo set-default --view >/dev/null 2&>1
+gh repo set-default --view >/dev/null 2>&1
 if [ $? -ne 0 ]; then
-  gh repo set-default >/dev/null 2&>1
+  gh repo set-default >/dev/null 2>&1
 fi
 
 # Set if a PR exists
